@@ -157,7 +157,7 @@ public class TBSyncedObjectStore {
         let user = try await user()
         
         isSyncing = true
-        let objects = await localPersistenceActor.objectsNeedingUpSync(user: user, setStatusSyncing: true, max: batchSize)
+        let objects = await localPersistenceActor.objectsNeedingUpSync(user: user, setStatusUpSyncing: true, max: batchSize)
         guard objects.count > 0 else {
             needsUpSync = false
             isSyncing = false

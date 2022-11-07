@@ -123,13 +123,43 @@ internal actor LocalPersistenceActor {
     // MARK: Locators
     
     func needsUpSync(user: String?) -> Bool {
-        readLocatorsNeedingUpSync(user: user, max: 1).count > 0
+        locatorsNeedingUpSync(user: user).count > 0
     }
     
-    private func readLocatorsNeedingUpSync(user: String?, max: Int) -> [ObjectLocator] {
+    private func locatorsNeedingUpSyncFilename(user: String?) -> String {
+        DataFolder.syncdata.path(user: user) + "/NeedsUpSync"
+    }
+    
+    private func locatorsNeedingUpSync(user: String?, max: Int? = nil) -> [ObjectLocator] {
+        do {
+            let locators: [ObjectLocator] = try fileManager.read(file: locatorsNeedingUpSyncFilename(user: user))
+            if let max = max {
+                return Array(locators.prefix(max))
+            } else {
+                return locators
+            }
+        } catch {
+            return []
+        }
+    }
+    
+    private func addLocatorNeedingUpSync(_ locator: ObjectLocator) throws {
+        var locators = locatorsNeedingUpSync(user: locator.user)
+        guard !locators.contains(locator) else { return }
+        locators.append(locator)
+        try fileManager.write(file: locatorsNeedingUpSyncFilename(user: locator.user), object: locators)
+    }
+    
+    private func removeLocatorNeedingUpSync(_ locator: ObjectLocator) throws {
+        var locators = locatorsNeedingUpSync(user: locator.user)
+        locators = locators.filter { $0 != locator }
+        try fileManager.write(file: locatorsNeedingUpSyncFilename(user: locator.user), object: locators)
+    }
+    
+    private func scanForLocatorsNeedingUpSync(user: String?, max: Int) -> [ObjectLocator] {
         var locators = [ObjectLocator]()
         for type in getTypes(user: user) {
-            guard let files = try? fileManager.contents(directory: DataFolder.syncdata.rawValue + "/" + type) else { continue }
+            guard let files = try? fileManager.contents(directory: DataFolder.syncdata.path(user: user) + "/" + type) else { continue }
             for file in files {
                 let locator = ObjectLocator(id: file, type: type, user: user)
                 guard let syncdata = syncdata(locator: locator) else { continue }
@@ -145,9 +175,9 @@ internal actor LocalPersistenceActor {
     }
         
     /// All objects needing sync
-    func objectsNeedingUpSync(user: String?, setStatusSyncing: Bool, max: Int) -> [SyncableObject] {
+    func objectsNeedingUpSync(user: String?, setStatusUpSyncing: Bool, max: Int) -> [SyncableObject] {
         let user = user ?? "_"
-        let locators = readLocatorsNeedingUpSync(user: user, max: max)
+        let locators = locatorsNeedingUpSync(user: user, max: max)
         var objects = [SyncableObject]()
         for locator in locators {
             guard var syncdata = syncdata(locator: locator), syncdata.status == .needsUpSync, syncdata.shouldRetry else { continue }
@@ -156,7 +186,7 @@ internal actor LocalPersistenceActor {
             let metadata = metadata(locator: locator)
             guard let object = try? SyncableObject(object: objectJson, locator: locator, metadata: metadata, syncdata: syncdata) else { continue }
             objects.append(object)
-            if setStatusSyncing {
+            if setStatusUpSyncing {
                 syncdata.status = .upSyncing
                 try? save(syncdata: syncdata, locator: locator)
             }
@@ -183,6 +213,7 @@ internal actor LocalPersistenceActor {
                     syncdata.retryAfter = nil
                     syncdata.retries = 0
                     try save(syncdata: syncdata, locator: object.locator)
+                    try removeLocatorNeedingUpSync(object.locator)
                 }
             } catch {
                 errors.append(ObjectError(locator: object.locator, error: error))
@@ -233,6 +264,7 @@ internal actor LocalPersistenceActor {
             let syncdata = cloudObject.syncdata(staus: .current)
             try save(syncdata: syncdata, locator: locator)
             try localStore.deleteObject(locator: locator)
+            try removeLocatorNeedingUpSync(locator)
             return ObjectChange(locator: locator, commit: cloudObject.commit, action: .deleted)
         }
         
@@ -249,6 +281,7 @@ internal actor LocalPersistenceActor {
         if object.commit == localObject.commit {
             let syncdata = object.syncdata(staus: .needsUpSync)
             try save(syncdata: syncdata, locator: locator)
+            try addLocatorNeedingUpSync(locator)
             return nil
         }
         
@@ -257,6 +290,7 @@ internal actor LocalPersistenceActor {
             try localStore.save(objectJson: object.objectJson, locator: locator)
             let syncdata = object.syncdata(staus: .current)
             try save(syncdata: syncdata, locator: locator)
+            try removeLocatorNeedingUpSync(locator)
             return ObjectChange(locator: locator, commit: object.commit, action: .modified)
         }
         
@@ -264,6 +298,7 @@ internal actor LocalPersistenceActor {
         try localStore.save(objectJson: object.objectJson, locator: locator)
         let syncdata = object.syncdata(staus: .needsUpSync)
         try save(syncdata: syncdata, locator: locator)
+        try addLocatorNeedingUpSync(locator)
         return ObjectChange(locator: locator, commit: object.commit, action: .modified)
     }
     
@@ -281,6 +316,7 @@ internal actor LocalPersistenceActor {
         let retryTime = Date().timeIntervalSince1970 + (TimeInterval(retryMinutes) * 60)
         syncdata.retryAfter = Date(timeIntervalSince1970: retryTime)
         try save(syncdata: syncdata, locator: object.locator)
+        try addLocatorNeedingUpSync(object.locator)
     }
     
     private func resolveConflict(_ object1: SyncableObject, object2: SyncableObject) -> SyncableObject {
@@ -339,6 +375,7 @@ internal actor LocalPersistenceActor {
             let syncdata = object.syncdata(staus: .current)
             try save(syncdata: syncdata, locator: locator)
             try localStore.deleteObject(locator: locator)
+            try removeLocatorNeedingUpSync(locator)
             return ObjectChange(locator: locator, commit: object.commit, action: .deleted)
         }
         
@@ -347,6 +384,7 @@ internal actor LocalPersistenceActor {
             try? save(metadata: object.archivedMetadata, locator: locator)
             syncdata.status = .needsUpSync
             try save(syncdata: syncdata, locator: locator)
+            try addLocatorNeedingUpSync(locator)
             return nil
         }
     
@@ -422,6 +460,7 @@ internal actor LocalPersistenceActor {
         let syncdata = try Syncdata(locator: locator, status: .needsUpSync, commit: newCommit(hash: hash))
         try localStore.save(object: object, locator: locator)
         try save(syncdata: syncdata, locator: locator)
+        try addLocatorNeedingUpSync(locator)
     }
     
     // update the commit deviceID to this device
@@ -449,6 +488,7 @@ internal actor LocalPersistenceActor {
         let syncdata = try Syncdata(locator: locator, status: .needsUpSync, isTombstone: true, commit: newCommit(hash: ObjectCommit.tombstoneHash))
         try save(syncdata: syncdata, locator: locator)
         try localStore.deleteObject(locator: locator)
+        try addLocatorNeedingUpSync(locator)
     }
     
     // MARK: Commits and IDs
