@@ -290,7 +290,7 @@ public class TBSyncedObjectStore {
 
     // MARK: User and Locator
     
-    private func user() async throws -> String? {
+    public func user() async throws -> String? {
         switch scope {
         case .public:
             return nil
@@ -318,6 +318,11 @@ public class TBSyncedObjectStore {
         return object
     }
     
+    public func objects<T:Codable>(type: String) async throws -> [T] {
+        let objects: [T] = try await localPersistenceActor.objects(type: type, user: user())
+        return objects
+    }
+    
     public func saveObject<T:Codable>(_ object: T, id: String, type: String) async throws {
         let locator = try await locator(id: id, type: type)
         try await localPersistenceActor.saveObject(object, locator: locator)
@@ -326,7 +331,15 @@ public class TBSyncedObjectStore {
     
     public func acknowledgeObject(id: String, type: String) async throws {
         let locator = try await locator(id: id, type: type)
+        try await acknowledgeObject(locator: locator)
+    }
+    
+    public func acknowledgeObject(locator: ObjectLocator) async throws {
         try await localPersistenceActor.acknowledgeObject(locator: locator)
+    }
+    
+    public func acknowledgeObjects(locators: [ObjectLocator]) async {
+        await localPersistenceActor.acknowledgeObjects(locators: locators)
     }
     
     public func deleteObject(id: String, type: String) async throws {

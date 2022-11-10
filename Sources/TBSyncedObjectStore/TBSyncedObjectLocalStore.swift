@@ -23,12 +23,29 @@ public class TBSyncedObjectLocalStore: TBSyncedObjectLocalStoreProtocol {
         fileManager.encryptionProvider = config.localEncryptionProvider
     }
     
+    private func directory(type: String, user: String?) throws -> String {
+        try (user ?? "_") + "/objects/" + type.conditionalHash()
+    }
+    
     private func filename(locator: ObjectLocator) throws -> String {
-        try (locator.user ?? "_") + "/objects/" + locator.type.conditionalHash() + "/" + locator.id.conditionalHash()
+        try directory(type: locator.type, user: locator.user) + "/" + locator.id.conditionalHash()
     }
     
     public func save(objectJson: String, locator: ObjectLocator) throws {
         try fileManager.write(file: filename(locator: locator), string: objectJson)
+    }
+    
+    public func objects<T: Codable>(type: String, user: String?) -> [T] {
+        guard let directory = try? directory(type: type, user: user) else { return [] }
+        guard let files = try? fileManager.contents(directory: directory) else { return [] }
+        var objects = [T]()
+        for file in files {
+            let filename = directory + "/" + file
+            if let object: T = try? fileManager.read(file: filename) {
+                objects.append(object)
+            }
+        }
+        return objects
     }
     
     public func deleteObject(locator: ObjectLocator) throws {

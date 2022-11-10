@@ -17,6 +17,8 @@ public protocol TBSyncedObjectLocalStoreProtocol {
     
     func object<T:Codable>(locator: ObjectLocator) -> T?
     
+    func objects<T:Codable>(type: String, user: String?) -> [T] 
+    
     func objectJson(locator: ObjectLocator) -> String?
     
 }
