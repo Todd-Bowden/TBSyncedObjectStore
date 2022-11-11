@@ -8,7 +8,7 @@ import Foundation
 import TBFileManager
 
 public class TBSyncedObjectLocalStore: TBSyncedObjectLocalStoreProtocol {
-    
+
     private let fileManager: TBFileManager
     
     public init(config: TBSyncedObjectStore.Config) throws {
@@ -31,8 +31,8 @@ public class TBSyncedObjectLocalStore: TBSyncedObjectLocalStoreProtocol {
         try directory(type: locator.type, user: locator.user) + "/" + locator.id.conditionalHash()
     }
     
-    public func save(objectJson: String, locator: ObjectLocator) throws {
-        try fileManager.write(file: filename(locator: locator), string: objectJson)
+    public func saveObject(json: String, locator: ObjectLocator) throws {
+        try fileManager.write(file: filename(locator: locator), string: json)
     }
     
     public func objects<T: Codable>(type: String, user: String?) -> [T] {

@@ -9,9 +9,9 @@ import Foundation
 
 public protocol TBSyncedObjectLocalStoreProtocol {
     
-    func save(object: Codable, locator: ObjectLocator) throws
+    func saveObject(_ object: Codable, locator: ObjectLocator) throws
     
-    func save(objectJson: String, locator: ObjectLocator) throws
+    func saveObject(json: String, locator: ObjectLocator) throws
     
     func deleteObject(locator: ObjectLocator) throws
     
@@ -32,10 +32,10 @@ public extension TBSyncedObjectLocalStoreProtocol {
         return try? decoder.decode(T.self, from: data)
     }
     
-    func save(object: Codable, locator: ObjectLocator) throws {
+    func saveObject(_ object: Codable, locator: ObjectLocator) throws {
         let encoder = JSONEncoder()
         let data = try encoder.encode(object)
-        try save(objectJson: data.utf8string(), locator: locator)
+        try saveObject(json: data.utf8string(), locator: locator)
     }
     
 }

@@ -291,7 +291,7 @@ internal actor LocalPersistenceActor {
         
         // if the cloud object wins, update the local object
         if object.commit == cloudObject.commit {
-            try localStore.save(objectJson: object.objectJson, locator: locator)
+            try localStore.saveObject(json: object.objectJson, locator: locator)
             let syncdata = object.syncdata(staus: .current)
             try save(syncdata: syncdata, locator: locator)
             try removeLocatorNeedingUpSync(locator)
@@ -299,7 +299,7 @@ internal actor LocalPersistenceActor {
         }
         
         // if a combined object is created, update the local object and resync
-        try localStore.save(objectJson: object.objectJson, locator: locator)
+        try localStore.saveObject(json: object.objectJson, locator: locator)
         let syncdata = object.syncdata(staus: .needsUpSync)
         try save(syncdata: syncdata, locator: locator)
         try addLocatorNeedingUpSync(locator)
@@ -369,7 +369,7 @@ internal actor LocalPersistenceActor {
             // if the new object is a tombstone return nil, no need to save the object/metdata or return an ObjectChange
             guard object.isNotTombstone else { return nil }
             try? save(metadata: object.archivedMetadata, locator: locator)
-            try localStore.save(objectJson: object.objectJson, locator: object.locator)
+            try localStore.saveObject(json: object.objectJson, locator: object.locator)
             return ObjectChange(locator: locator, commit: object.commit, action: .created)
         }
         
@@ -402,7 +402,7 @@ internal actor LocalPersistenceActor {
             try? save(metadata: object.archivedMetadata, locator: locator)
             let syncdata = object.syncdata(staus: .current)
             try save(syncdata: syncdata, locator: locator)
-            try localStore.save(objectJson: object.objectJson, locator: object.locator)
+            try localStore.saveObject(json: object.objectJson, locator: object.locator)
             return ObjectChange(locator: locator, commit: object.commit, action: .modified)
         }
         
@@ -462,7 +462,7 @@ internal actor LocalPersistenceActor {
     private func saveObjectAndSetNeedsUpSync<T:Codable>(object: T, locator: ObjectLocator) throws {
         let hash = object.jsonHash()
         let syncdata = try Syncdata(locator: locator, status: .needsUpSync, commit: newCommit(hash: hash))
-        try localStore.save(object: object, locator: locator)
+        try localStore.saveObject(object, locator: locator)
         try save(syncdata: syncdata, locator: locator)
         try addLocatorNeedingUpSync(locator)
     }
