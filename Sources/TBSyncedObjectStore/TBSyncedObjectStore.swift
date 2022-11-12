@@ -26,25 +26,11 @@ public class TBSyncedObjectStore {
         case `public`
     }
     
-    public struct Config {
-        public var appGroup: String?
-        public var baseDirectory: FileManager.SearchPathDirectory?
-        public var container: String?
-        public var scope: Scope
-        public var types: [String]
-        public var localStore: TBSyncedObjectLocalStoreProtocol?
-        public var conflictResolver: TBSyncedObjectConflctResolverProtocol?
-        public var localEncryptionProvider: TBFileManagerEncryptionProviderProtocol?
-        
-        func identifier() throws -> String {
-            try ((container ?? "") + scope.rawValue).hash(length: 32)
-        }
-    }
-    
     private let container: CKContainer
     private let database: CKDatabase
     private let scope: Scope
-    private let types: [String]
+    private let types:[String: Codable.Type]
+    private let localStore: TBSyncedObjectLocalStoreProtocol
     /// Provides serialized access to local sync data and the local store
     private let localPersistenceActor: LocalPersistenceActor
     
@@ -61,7 +47,7 @@ public class TBSyncedObjectStore {
         !isSyncing
     }
     
-    public static func store(_ scope: Scope, types: [String], appGroup: String?, container: String?) throws -> TBSyncedObjectStore {
+    public static func store(_ scope: Scope, types: [String:Codable.Type], appGroup: String?, container: String?) throws -> TBSyncedObjectStore {
         let config = Config(appGroup: appGroup, container: container, scope: scope, types: types)
         return try store(config: config)
     }
@@ -96,6 +82,8 @@ public class TBSyncedObjectStore {
        
         var config = config
         config.container = self.container.containerIdentifier
+        self.localStore = try config.localStore ?? TBSyncedObjectLocalStore(config: config)
+        config.localStore = self.localStore
         
         self.localPersistenceActor = try LocalPersistenceActor(config: config)
         
@@ -201,7 +189,7 @@ public class TBSyncedObjectStore {
         guard isNotSyncing else { return }
         isSyncing = true
         let user = try await user()
-        for type in types {
+        for type in types.keys {
             try await downSync(type: type, user: user)
         }
         isSyncing = false
@@ -314,7 +302,7 @@ public class TBSyncedObjectStore {
     
     public func object<T:Codable>(id: String, type: String) async throws -> T? {
         let locator = try await locator(id: id, type: type)
-        guard let object:T = await localPersistenceActor.object(locator: locator) else { return nil }
+        guard let object:T = localStore.object(locator: locator) else { return nil }
         return object
     }
     
@@ -351,5 +339,40 @@ public class TBSyncedObjectStore {
 }
 
 
+public extension TBSyncedObjectStore{
+    
+    struct Config {
+        public var appGroup: String?
+        public var baseDirectory: FileManager.SearchPathDirectory?
+        public var container: String?
+        public var scope: Scope
+        public var types: [String: Codable.Type]
+        public var localStore: TBSyncedObjectLocalStoreProtocol?
+        public var conflictResolver: TBSyncedObjectConflctResolverProtocol?
+        public var localEncryptionProvider: TBFileManagerEncryptionProviderProtocol?
+        
+        func identifier() throws -> String {
+            try ((container ?? "") + scope.rawValue).hash(length: 32)
+        }
+        
+        public init(appGroup: String? = nil,
+                    baseDirectory: FileManager.SearchPathDirectory? = nil,
+                    container: String? = nil,
+                    scope: TBSyncedObjectStore.Scope,
+                    types: [String : Codable.Type],
+                    localStore: TBSyncedObjectLocalStoreProtocol? = nil,
+                    conflictResolver: TBSyncedObjectConflctResolverProtocol? = nil,
+                    localEncryptionProvider: TBFileManagerEncryptionProviderProtocol? = nil) {
+            self.appGroup = appGroup
+            self.baseDirectory = baseDirectory
+            self.container = container
+            self.scope = scope
+            self.types = types
+            self.localStore = localStore
+            self.conflictResolver = conflictResolver
+            self.localEncryptionProvider = localEncryptionProvider
+        }
+    }
+}
 
 

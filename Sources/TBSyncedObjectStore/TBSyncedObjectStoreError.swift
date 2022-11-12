@@ -19,4 +19,5 @@ public enum TBSyncedObjectStoreError: Error {
     case cannotSaveSyncdata(ObjectLocator, Error)
     case cannotSaveMetadata(ObjectLocator, Error)
     case cannotDeleteMetadata(ObjectLocator, Error)
+    case unknownObjectType(String)
 }

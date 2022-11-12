@@ -44,6 +44,10 @@ public struct SyncableObject {
         return try JSONDecoder().decode(T.self, from: data)
     }
     
+    public func object(type: Codable.Type) throws -> Codable {
+        return try JSONDecoder().decode(type, from: objectJson.utf8data())
+    }
+    
     public func syncdata(staus: Syncdata.Status) -> Syncdata {
         Syncdata(locator: locator, status: staus, isTombstone: isTombstone, commit: commit)
     }

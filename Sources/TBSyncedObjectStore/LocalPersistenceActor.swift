@@ -19,6 +19,7 @@ internal actor LocalPersistenceActor {
         let errors: [ObjectError]
     }
     
+    private let types: [String: Codable.Type]
     private let fileManager: TBFileManager
     private let localStore: TBSyncedObjectLocalStoreProtocol
     private let deviceID: String
@@ -26,6 +27,8 @@ internal actor LocalPersistenceActor {
     
 
     init(config: TBSyncedObjectStore.Config) throws {
+        self.types = config.types
+        
         let directory = try config.identifier()
         
         if let appGroup = config.appGroup {
@@ -289,9 +292,14 @@ internal actor LocalPersistenceActor {
             return nil
         }
         
+        // get the codable object type
+        guard let type = types[object.type] else {
+            throw TBSyncedObjectStoreError.unknownObjectType(object.type)
+        }
+        
         // if the cloud object wins, update the local object
         if object.commit == cloudObject.commit {
-            try localStore.saveObject(json: object.objectJson, locator: locator)
+            try localStore.saveObject(object.object(type: type), locator: locator)
             let syncdata = object.syncdata(staus: .current)
             try save(syncdata: syncdata, locator: locator)
             try removeLocatorNeedingUpSync(locator)
@@ -299,7 +307,7 @@ internal actor LocalPersistenceActor {
         }
         
         // if a combined object is created, update the local object and resync
-        try localStore.saveObject(json: object.objectJson, locator: locator)
+        try localStore.saveObject(object.object(type: type), locator: locator)
         let syncdata = object.syncdata(staus: .needsUpSync)
         try save(syncdata: syncdata, locator: locator)
         try addLocatorNeedingUpSync(locator)
@@ -362,6 +370,11 @@ internal actor LocalPersistenceActor {
     private func processFetchedObject(_ object: SyncableObject) throws -> ObjectChange? {
         let locator = object.locator
         
+        // get the codable object type
+        guard let type = types[object.type] else {
+            throw TBSyncedObjectStoreError.unknownObjectType(object.type)
+        }
+        
         // if no syncdata, this is a new object, create
         guard var syncdata = syncdata(locator: locator) else {
             let syncdata = object.syncdata(staus: .current)
@@ -369,7 +382,7 @@ internal actor LocalPersistenceActor {
             // if the new object is a tombstone return nil, no need to save the object/metdata or return an ObjectChange
             guard object.isNotTombstone else { return nil }
             try? save(metadata: object.archivedMetadata, locator: locator)
-            try localStore.saveObject(json: object.objectJson, locator: object.locator)
+            try localStore.saveObject(object.object(type: type), locator: object.locator)
             return ObjectChange(locator: locator, commit: object.commit, action: .created)
         }
         
@@ -402,7 +415,7 @@ internal actor LocalPersistenceActor {
             try? save(metadata: object.archivedMetadata, locator: locator)
             let syncdata = object.syncdata(staus: .current)
             try save(syncdata: syncdata, locator: locator)
-            try localStore.saveObject(json: object.objectJson, locator: object.locator)
+            try localStore.saveObject(object.object(type: type), locator: object.locator)
             return ObjectChange(locator: locator, commit: object.commit, action: .modified)
         }
         

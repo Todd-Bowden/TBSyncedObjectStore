@@ -31,10 +31,6 @@ public class TBSyncedObjectLocalStore: TBSyncedObjectLocalStoreProtocol {
         try directory(type: locator.type, user: locator.user) + "/" + locator.id.conditionalHash()
     }
     
-    public func saveObject(json: String, locator: ObjectLocator) throws {
-        try fileManager.write(file: filename(locator: locator), string: json)
-    }
-    
     public func objects<T: Codable>(type: String, user: String?) -> [T] {
         guard let directory = try? directory(type: type, user: user) else { return [] }
         guard let files = try? fileManager.contents(directory: directory) else { return [] }
@@ -48,12 +44,20 @@ public class TBSyncedObjectLocalStore: TBSyncedObjectLocalStoreProtocol {
         return objects
     }
     
+    public func saveObject(_ object: Codable, locator: ObjectLocator) throws {
+        try fileManager.write(file: filename(locator: locator), object: object)
+    }
+    
     public func deleteObject(locator: ObjectLocator) throws {
         try fileManager.delete(file: filename(locator: locator))
     }
     
     public func objectJson(locator: ObjectLocator) -> String? {
         try? fileManager.read(file: filename(locator: locator))
+    }
+    
+    func object(locator: ObjectLocator) -> Codable? {
+        nil
     }
     
 }

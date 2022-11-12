@@ -11,8 +11,6 @@ public protocol TBSyncedObjectLocalStoreProtocol {
     
     func saveObject(_ object: Codable, locator: ObjectLocator) throws
     
-    func saveObject(json: String, locator: ObjectLocator) throws
-    
     func deleteObject(locator: ObjectLocator) throws
     
     func object<T:Codable>(locator: ObjectLocator) -> T?
@@ -30,12 +28,6 @@ public extension TBSyncedObjectLocalStoreProtocol {
         guard let data = json.data(using: .utf8) else { return nil }
         let decoder = JSONDecoder()
         return try? decoder.decode(T.self, from: data)
-    }
-    
-    func saveObject(_ object: Codable, locator: ObjectLocator) throws {
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(object)
-        try saveObject(json: data.utf8string(), locator: locator)
     }
     
 }
