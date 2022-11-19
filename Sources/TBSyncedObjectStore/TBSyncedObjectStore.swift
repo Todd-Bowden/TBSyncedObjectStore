@@ -151,27 +151,39 @@ public class TBSyncedObjectStore {
             isSyncing = false
             return
         }
+        print(objects)
         
         // map objects to cloudkit records and save to cloudkit
-        let records = objects.map { $0.ckRecord }
+        var errors = [ObjectError]()
+        var records = [CKRecord]()
+        for object in objects {
+            do {
+                let record = try object.ckRecord()
+                records.append(record)
+            } catch {
+                let error = ObjectError(locator: object.locator, error: error)
+                errors.append(error)
+            }
+        }
+        print(records)
         let results = try await database.modifyRecords(saving: records, deleting: [], atomically: false).saveResults
         
         // map the result into successfully saved records and errors
         var savedRecords = [CKRecord]()
-        var errors = [CKError]()
+        var ckErrors = [CKError]()
         for (_,result) in results {
             switch result {
             case .success(let record):
                 savedRecords.append(record)
             case .failure(let error):
                 if let ckError = error as? CKError {
-                    errors.append(ckError)
+                    ckErrors.append(ckError)
                 }
             }
         }
         
         var processingErrors = await localPersistenceActor.processCloudSavedRecords(records, user: user).errors
-        let processingResults = await localPersistenceActor.processCloudErrors(errors, user: user)
+        let processingResults = await localPersistenceActor.processCloudErrors(ckErrors, user: user)
         publish(changes: processingResults.changes)
         if processingResults.changes.count > 0 { needsUpSync = true }
         processingErrors.append(contentsOf: processingResults.errors)
@@ -347,6 +359,7 @@ public extension TBSyncedObjectStore{
         public var container: String?
         public var scope: Scope
         public var types: [String: Codable.Type]
+        public var recordMappings: [String: CKRecordMapingProtocol]
         public var localStore: TBSyncedObjectLocalStoreProtocol?
         public var conflictResolver: TBSyncedObjectConflctResolverProtocol?
         public var localEncryptionProvider: TBFileManagerEncryptionProviderProtocol?
@@ -360,6 +373,7 @@ public extension TBSyncedObjectStore{
                     container: String? = nil,
                     scope: TBSyncedObjectStore.Scope,
                     types: [String : Codable.Type],
+                    recordMappings: [String: CKRecordMapingProtocol] = [:],
                     localStore: TBSyncedObjectLocalStoreProtocol? = nil,
                     conflictResolver: TBSyncedObjectConflctResolverProtocol? = nil,
                     localEncryptionProvider: TBFileManagerEncryptionProviderProtocol? = nil) {
@@ -368,6 +382,7 @@ public extension TBSyncedObjectStore{
             self.container = container
             self.scope = scope
             self.types = types
+            self.recordMappings = recordMappings
             self.localStore = localStore
             self.conflictResolver = conflictResolver
             self.localEncryptionProvider = localEncryptionProvider
