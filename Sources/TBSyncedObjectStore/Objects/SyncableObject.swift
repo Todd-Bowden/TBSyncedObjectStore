@@ -101,7 +101,7 @@ public struct SyncableObject {
         self.codableType = nil
     }
     
-    init(object: Codable, locator: ObjectLocator, metadata: Data?, syncdata: Syncdata, codableType: Codable.Type?, recordMapping: CKRecordMappingProtocol?) throws {
+    init(object: Codable?, locator: ObjectLocator, metadata: Data?, syncdata: Syncdata, codableType: Codable.Type?, recordMapping: CKRecordMappingProtocol?) throws {
         self.locator = locator
         self.isTombstone = syncdata.isTombstone
         self.object = object
@@ -111,7 +111,7 @@ public struct SyncableObject {
         self.recordMapping = recordMapping
     }
     
-    init(object: Codable, locator: ObjectLocator, metadata: Data?, commit: ObjectCommit, codableType: Codable.Type?, recordMapping: CKRecordMappingProtocol?) throws {
+    init(object: Codable?, locator: ObjectLocator, metadata: Data?, commit: ObjectCommit, codableType: Codable.Type?, recordMapping: CKRecordMappingProtocol?) throws {
         self.locator = locator
         self.isTombstone = commit.isTombstone
         self.object = object
