@@ -36,6 +36,11 @@ public struct SyncableObject {
         return try? encoder.encode(object).utf8string()
     }
     
+    public var objectHash: String {
+        guard let object = object else { return "" }
+        return object.jsonHash()
+    }
+    
     private var ckMetadataRecord: CKRecord? {
         guard let archivedMetadata = archivedMetadata else { return nil }
         return CKRecord(archivedMetadata: archivedMetadata)
