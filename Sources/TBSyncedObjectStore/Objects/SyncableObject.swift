@@ -74,7 +74,7 @@ public struct SyncableObject {
     }
                                           
     init(ckRecord: CKRecord, type: Codable.Type, recordMapping: CKRecordMappingProtocol, user: String?) throws {
-        self.locator = ObjectLocator(id: ckRecord.recordID.recordName, type: ckRecord.recordType, user: user)
+        self.locator = ckRecord.objectLocator(user: user)
         self.isTombstone = ckRecord[Keys.tombstone] as? Bool ?? false
         let commit = ckRecord[Keys.commit] as? String ?? ""
         self.commit = ObjectCommit(commit) ?? ObjectCommit.empty
