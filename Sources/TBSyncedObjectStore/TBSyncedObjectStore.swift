@@ -93,6 +93,8 @@ public class TBSyncedObjectStore {
         
         self.localPersistenceActor = try LocalPersistenceActor(config: config)
         
+        self.identifier = try config.identifier()
+        
         startUpSync()
         startDownSync()
         downSyncTask()
