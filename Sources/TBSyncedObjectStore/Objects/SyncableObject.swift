@@ -22,7 +22,7 @@ public struct SyncableObject {
     public var commit: ObjectCommit
         
     private let codableType: Codable.Type?
-    private let recordMaping: CKRecordMapingProtocol?
+    private let recordMapping: CKRecordMappingProtocol?
     
     public var id: String { locator.id }
     public var type: String { locator.type }
@@ -62,18 +62,18 @@ public struct SyncableObject {
             record[Keys.commit] = commit.string
             return record
         }
-        guard let recordMaping = recordMaping else {
-            throw TBSyncedObjectStoreError.recordMapingNotProvided
+        guard let recordMapping = recordMapping else {
+            throw TBSyncedObjectStoreError.recordMappingNotProvided
         }
         if let object = self.object {
-            record = try recordMaping.ckRecord(baseRecord: record, object: object)
+            record = try recordMapping.ckRecord(baseRecord: record, object: object)
         }
         record[Keys.tombstone] = isTombstone
         record[Keys.commit] = commit.string
         return record
     }
                                           
-    init(ckRecord: CKRecord, type: Codable.Type, recordMaping: CKRecordMapingProtocol, user: String?) throws {
+    init(ckRecord: CKRecord, type: Codable.Type, recordMapping: CKRecordMappingProtocol, user: String?) throws {
         self.locator = ObjectLocator(id: ckRecord.recordID.recordName, type: ckRecord.recordType, user: user)
         self.isTombstone = ckRecord[Keys.tombstone] as? Bool ?? false
         let commit = ckRecord[Keys.commit] as? String ?? ""
@@ -82,12 +82,12 @@ public struct SyncableObject {
         
         if isTombstone {
             self.codableType = nil
-            self.recordMaping = nil
+            self.recordMapping = nil
             self.object = nil
         } else {
             self.codableType = type
-            self.recordMaping = recordMaping
-            self.object = try recordMaping.object(ckRecord: ckRecord, type: type)
+            self.recordMapping = recordMapping
+            self.object = try recordMapping.object(ckRecord: ckRecord, type: type)
         }
     }
     
@@ -97,28 +97,28 @@ public struct SyncableObject {
         self.isTombstone = true
         self.commit = commit.tombstone
         self.archivedMetadata = metadata
-        self.recordMaping = nil
+        self.recordMapping = nil
         self.codableType = nil
     }
     
-    init(object: Codable, locator: ObjectLocator, metadata: Data?, syncdata: Syncdata, codableType: Codable.Type?, recordMaping: CKRecordMapingProtocol?) throws {
+    init(object: Codable, locator: ObjectLocator, metadata: Data?, syncdata: Syncdata, codableType: Codable.Type?, recordMapping: CKRecordMappingProtocol?) throws {
         self.locator = locator
         self.isTombstone = syncdata.isTombstone
         self.object = object
         self.archivedMetadata = metadata
         self.commit = syncdata.commit
         self.codableType = codableType
-        self.recordMaping = recordMaping
+        self.recordMapping = recordMapping
     }
     
-    init(object: Codable, locator: ObjectLocator, metadata: Data?, commit: ObjectCommit, codableType: Codable.Type?, recordMaping: CKRecordMapingProtocol?) throws {
+    init(object: Codable, locator: ObjectLocator, metadata: Data?, commit: ObjectCommit, codableType: Codable.Type?, recordMapping: CKRecordMappingProtocol?) throws {
         self.locator = locator
         self.isTombstone = commit.isTombstone
         self.object = object
         self.archivedMetadata = metadata
         self.commit = commit
         self.codableType = codableType
-        self.recordMaping = recordMaping
+        self.recordMapping = recordMapping
     }
     
 }

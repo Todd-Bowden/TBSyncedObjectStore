@@ -1,5 +1,5 @@
 //
-//  CKRecordJsonObjectMaping.swift
+//  CKRecordJsonObjectMapping.swift
 //  
 //
 //  Created by Todd Bowden on 11/17/22.
@@ -8,7 +8,7 @@
 import Foundation
 import CloudKit
 
-public class CKRecordJsonObjectMaping: CKRecordMapingProtocol {
+public class CKRecordJsonObjectMapping: CKRecordMappingProtocol {
     
     public func ckRecord(baseRecord: CKRecord, object: Codable) throws -> CKRecord {
         let encoder = JSONEncoder()

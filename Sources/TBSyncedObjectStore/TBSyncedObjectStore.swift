@@ -359,7 +359,7 @@ public extension TBSyncedObjectStore{
         public var container: String?
         public var scope: Scope
         public var types: [String: Codable.Type]
-        public var recordMappings: [String: CKRecordMapingProtocol]
+        public var recordMappings: [String: CKRecordMappingProtocol]
         public var localStore: TBSyncedObjectLocalStoreProtocol?
         public var conflictResolver: TBSyncedObjectConflctResolverProtocol?
         public var localEncryptionProvider: TBFileManagerEncryptionProviderProtocol?
@@ -373,7 +373,7 @@ public extension TBSyncedObjectStore{
                     container: String? = nil,
                     scope: TBSyncedObjectStore.Scope,
                     types: [String : Codable.Type],
-                    recordMappings: [String: CKRecordMapingProtocol] = [:],
+                    recordMappings: [String: CKRecordMappingProtocol] = [:],
                     localStore: TBSyncedObjectLocalStoreProtocol? = nil,
                     conflictResolver: TBSyncedObjectConflctResolverProtocol? = nil,
                     localEncryptionProvider: TBFileManagerEncryptionProviderProtocol? = nil) {
