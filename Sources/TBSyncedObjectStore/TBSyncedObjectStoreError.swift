@@ -20,4 +20,9 @@ public enum TBSyncedObjectStoreError: Error {
     case cannotSaveMetadata(ObjectLocator, Error)
     case cannotDeleteMetadata(ObjectLocator, Error)
     case unknownObjectType(String)
+    case codableObjectMissing
+    case codableObjectTypeNotProvided
+    case recordMappingNotProvided
+    case ckRecordObjectMissing
+    
 }
