@@ -47,6 +47,12 @@ public class TBSyncedObjectStore {
         !isSyncing
     }
     
+    public let changesPublisher = PassthroughSubject<[ObjectChange],Never>()
+    public let errorsPublisher = PassthroughSubject<[ObjectError],Never>()
+    
+    public let identifier: String
+    
+    
     public static func store(_ scope: Scope, types: [String:Codable.Type], appGroup: String?, container: String?) throws -> TBSyncedObjectStore {
         let config = Config(appGroup: appGroup, container: container, scope: scope, types: types)
         return try store(config: config)
@@ -97,13 +103,13 @@ public class TBSyncedObjectStore {
 
     private func publish(changes: [ObjectChange]) {
         guard changes.count > 0 else { return }
-        
+        changesPublisher.send(changes)
     }
     
     
     private func publish(errors: [ObjectError]) {
         guard errors.count > 0 else { return }
-        
+        errorsPublisher.send(errors)
     }
     
     
