@@ -13,21 +13,19 @@ public protocol TBSyncedObjectLocalStoreProtocol {
     
     func deleteObject(locator: ObjectLocator) throws
     
+    func object(locator: ObjectLocator, type: Codable.Type) -> Codable?
+    
+    
     func object<T:Codable>(locator: ObjectLocator) -> T?
     
-    func objects<T:Codable>(type: String, user: String?) -> [T] 
-    
-    func objectJson(locator: ObjectLocator) -> String?
+    func objects<T:Codable>(type: String, user: String?) throws -> [T]
     
 }
 
 public extension TBSyncedObjectLocalStoreProtocol {
     
     func object<T:Codable>(locator: ObjectLocator) -> T? {
-        guard let json = objectJson(locator: locator) else { return nil }
-        guard let data = json.data(using: .utf8) else { return nil }
-        let decoder = JSONDecoder()
-        return try? decoder.decode(T.self, from: data)
+        object(locator: locator, type: T.self) as? T
     }
     
 }
