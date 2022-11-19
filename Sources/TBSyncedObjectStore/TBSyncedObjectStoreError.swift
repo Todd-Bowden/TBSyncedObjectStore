@@ -1,5 +1,5 @@
 //
-//  Error.swift
+//  TBSyncedObjectStoreError.swift
 //  
 //
 //  Created by Todd Bowden on 10/7/22.
@@ -24,5 +24,4 @@ public enum TBSyncedObjectStoreError: Error {
     case codableObjectTypeNotProvided
     case recordMappingNotProvided
     case ckRecordObjectMissing
-    
 }
