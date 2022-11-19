@@ -8,9 +8,14 @@
 import Foundation
 
 public struct ObjectLocator: Hashable, Codable {
-    
     public let id: String
     public let type: String
     public let user: String?
     
+    public init(id: String, type: String, user: String? = nil) {
+        self.id = id
+        self.type = type
+        self.user = user
+    }
 }
+
