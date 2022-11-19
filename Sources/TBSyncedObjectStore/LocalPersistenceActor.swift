@@ -20,6 +20,7 @@ internal actor LocalPersistenceActor {
     }
     
     private let types: [String: Codable.Type]
+    private let recordMappings: [String: CKRecordMappingProtocol]
     private let fileManager: TBFileManager
     private let localStore: TBSyncedObjectLocalStoreProtocol
     private let deviceID: String
@@ -28,6 +29,7 @@ internal actor LocalPersistenceActor {
 
     init(config: TBSyncedObjectStore.Config) throws {
         self.types = config.types
+        self.recordMappings = config.recordMappings
         
         let directory = try config.identifier()
         
@@ -85,11 +87,25 @@ internal actor LocalPersistenceActor {
         return (try? fileManager.read(file: filename)) ?? Date(timeIntervalSince1970: 0)
     }
     
+    private func recordMapping(type: String) -> CKRecordMappingProtocol {
+        recordMappings[type] ?? CKRecordJsonObjectMapping()
+    }
+    
     func syncableObject(locator: ObjectLocator) -> SyncableObject? {
-        let objectJson = localStore.objectJson(locator: locator) ?? ""
+        guard let codableType = types[locator.type] else { return nil }
+        let object = localStore.object(locator: locator, type: codableType)
         let metadata = metadata(locator: locator)
         guard let syncdata = syncdata(locator: locator) else { return nil }
-        return try? SyncableObject(object: objectJson, locator: locator, metadata: metadata, syncdata: syncdata)
+        let mapping = recordMapping(type: locator.type)
+        return try? SyncableObject(object: object, locator: locator, metadata: metadata, syncdata: syncdata, codableType: codableType, recordMapping: mapping)
+    }
+    
+    func syncableObject(ckRecord: CKRecord, user: String?) throws -> SyncableObject {
+        guard let codableType = types[ckRecord.recordType] else {
+            throw TBSyncedObjectStoreError.unknownObjectType(ckRecord.recordType)
+        }
+        let mapping = recordMapping(type: ckRecord.recordType)
+        return try SyncableObject(ckRecord: ckRecord, type: codableType, recordMapping: mapping, user: user)
     }
     
     func save(syncdata: Syncdata, locator: ObjectLocator) throws {
@@ -319,7 +335,7 @@ internal actor LocalPersistenceActor {
         guard let record = error.userInfo[CKRecordChangedErrorClientRecordKey] as? CKRecord else {
             throw TBSyncedObjectStoreError.missingClientRecord
         }
-        let object = SyncableObject(ckRecord: record, user: user)
+        let object = try syncableObject(ckRecord: record, user: user)
         guard var syncdata = syncdata(locator: object.locator) else { return }
         syncdata.status = .needsUpSync
         let retries = (syncdata.retries ?? 0) + 1
