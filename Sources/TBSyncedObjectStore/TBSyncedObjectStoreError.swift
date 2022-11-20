@@ -22,6 +22,7 @@ public enum TBSyncedObjectStoreError: Error {
     case unknownObjectType(String)
     case codableObjectMissing
     case codableObjectTypeNotProvided
+    case codableObjectTypeMismatch
     case recordMappingNotProvided
     case ckRecordObjectMissing
 }
