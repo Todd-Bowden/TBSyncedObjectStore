@@ -207,10 +207,11 @@ public class TBSyncedObjectStore {
     
     private func downSync() async throws {
         guard isNotSyncing else { return }
-        isSyncing = true
         let user = try await user()
+        
+        isSyncing = true
         for type in types.keys {
-            try await downSync(type: type, user: user)
+            try? await downSync(type: type, user: user)
         }
         isSyncing = false
     }
@@ -373,7 +374,7 @@ public extension TBSyncedObjectStore{
         public var localEncryptionProvider: TBFileManagerEncryptionProviderProtocol?
         
         func identifier() throws -> String {
-            try ((container ?? "") + scope.rawValue).hash(length: 32)
+            try ((container ?? "") + scope.rawValue).hash()
         }
         
         public init(appGroup: String? = nil,
