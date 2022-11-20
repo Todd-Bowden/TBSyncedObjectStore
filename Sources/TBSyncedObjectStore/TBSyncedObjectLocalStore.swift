@@ -52,12 +52,8 @@ public class TBSyncedObjectLocalStore: TBSyncedObjectLocalStoreProtocol {
         try fileManager.delete(file: filename(locator: locator))
     }
     
-    public func objectJson(locator: ObjectLocator) -> String? {
-        try? fileManager.read(file: filename(locator: locator))
-    }
-    
-    func object(locator: ObjectLocator) -> Codable? {
-        nil
+    public func object(locator: ObjectLocator, type: Codable.Type) -> Codable? {
+        try? fileManager.read(type: type, file: filename(locator: locator))
     }
     
 }
