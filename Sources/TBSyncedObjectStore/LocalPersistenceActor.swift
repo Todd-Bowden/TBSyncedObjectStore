@@ -52,6 +52,14 @@ internal actor LocalPersistenceActor {
         }
     }
     
+    // MARK: Types
+    
+    private func codableType(type: String) throws -> Codable.Type {
+        guard let codableType = types[type] else {
+            throw TBSyncedObjectStoreError.codableObjectTypeNotProvided
+        }
+        return codableType
+    }
     
     // MARK: Read and write objects
     
@@ -62,8 +70,8 @@ internal actor LocalPersistenceActor {
         return object
     }
     
-    func objects<T:Codable>(type: String, user: String?) -> [T] {
-        localStore.objects(type: type, user: user)
+    func objects<T:Codable>(type: String, user: String?) throws -> [T] {
+        try localStore.objects(type: type, user: user)
     }
     
     private func filename(locator: ObjectLocator, folder: DataFolder) throws -> String {
@@ -74,11 +82,11 @@ internal actor LocalPersistenceActor {
         try DataFolder.syncdata.path(user: user) + "/" + type.conditionalHash() + "/_LatestCloudModificationDate"
     }
     
-    func syncdata(locator: ObjectLocator) -> Syncdata? {
+    private func syncdata(locator: ObjectLocator) -> Syncdata? {
         try? fileManager.read(file: filename(locator: locator, folder: .syncdata))
     }
     
-    func metadata(locator: ObjectLocator) -> Data? {
+    private func metadata(locator: ObjectLocator) -> Data? {
         try? fileManager.read(file: filename(locator: locator, folder: .metadata))
     }
     
@@ -91,16 +99,20 @@ internal actor LocalPersistenceActor {
         recordMappings[type] ?? CKRecordJsonObjectMapping()
     }
     
-    func syncableObject(locator: ObjectLocator) -> SyncableObject? {
-        guard let codableType = types[locator.type] else { return nil }
+    // MARK: SyncableObjects
+    
+    private func localSyncableObject(locator: ObjectLocator) throws -> SyncableObject {
+        let codableType = try codableType(type: locator.type)
         let object = localStore.object(locator: locator, type: codableType)
         let metadata = metadata(locator: locator)
-        guard let syncdata = syncdata(locator: locator) else { return nil }
+        guard let syncdata = syncdata(locator: locator) else {
+            throw TBSyncedObjectStoreError.missingLocalObject(locator)
+        }
         let mapping = recordMapping(type: locator.type)
-        return try? SyncableObject(object: object, locator: locator, metadata: metadata, syncdata: syncdata, codableType: codableType, recordMapping: mapping)
+        return try SyncableObject(object: object, locator: locator, metadata: metadata, syncdata: syncdata, codableType: codableType, recordMapping: mapping)
     }
     
-    func syncableObject(ckRecord: CKRecord, user: String?) throws -> SyncableObject {
+    private func syncableObject(ckRecord: CKRecord, user: String?) throws -> SyncableObject {
         guard let codableType = types[ckRecord.recordType] else {
             throw TBSyncedObjectStoreError.unknownObjectType(ckRecord.recordType)
         }
@@ -108,7 +120,21 @@ internal actor LocalPersistenceActor {
         return try SyncableObject(ckRecord: ckRecord, type: codableType, recordMapping: mapping, user: user)
     }
     
-    func save(syncdata: Syncdata, locator: ObjectLocator) throws {
+    private func syncableObject(object: Codable?, locator: ObjectLocator, metadata: Data?, commit: ObjectCommit) throws -> SyncableObject {
+        let codableType = try codableType(type: locator.type)
+        let maping = recordMapping(type: locator.type)
+        return try SyncableObject(object: object, locator: locator, metadata: metadata, commit: commit, codableType: codableType, recordMapping: maping)
+    }
+    
+    
+    // MARK: Saving and Deleting
+    
+    private func save(object: Codable?, locator: ObjectLocator) throws {
+        guard let object = object else { return }
+        try localStore.saveObject(object, locator: locator)
+    }
+    
+    private func save(syncdata: Syncdata, locator: ObjectLocator) throws {
         do {
             try fileManager.write(file: filename(locator: locator, folder: .syncdata), object: syncdata)
         } catch {
@@ -116,7 +142,7 @@ internal actor LocalPersistenceActor {
         }
     }
     
-    func save(metadata: Data?, locator: ObjectLocator) throws {
+    private func save(metadata: Data?, locator: ObjectLocator) throws {
         guard let metadata = metadata else { return }
         do {
             try fileManager.write(file: filename(locator: locator, folder: .metadata), data: metadata)
@@ -130,18 +156,14 @@ internal actor LocalPersistenceActor {
         return try fileManager.write(file: filename, object: date)
     }
     
-    func deleteMetadata(locator: ObjectLocator) throws {
+    private func deleteMetadata(locator: ObjectLocator) throws {
         do {
             try fileManager.delete(file: filename(locator: locator, folder: .metadata))
         } catch {
             throw TBSyncedObjectStoreError.cannotDeleteMetadata(locator, error)
         }
     }
-    
-    private func getTypes(user: String?) -> [String] {
-       (try? fileManager.subdirectories(directory: DataFolder.syncdata.path(user: user))) ?? []
-    }
-    
+
     
     // MARK: Locators
     
@@ -181,7 +203,7 @@ internal actor LocalPersistenceActor {
     
     private func scanForLocatorsNeedingUpSync(user: String?, max: Int) -> [ObjectLocator] {
         var locators = [ObjectLocator]()
-        for type in getTypes(user: user) {
+        for type in types.keys {
             guard let files = try? fileManager.contents(directory: DataFolder.syncdata.path(user: user) + "/" + type) else { continue }
             for file in files {
                 let locator = ObjectLocator(id: file, type: type, user: user)
@@ -204,10 +226,7 @@ internal actor LocalPersistenceActor {
         var objects = [SyncableObject]()
         for locator in locators {
             guard var syncdata = syncdata(locator: locator), syncdata.status == .needsUpSync, syncdata.shouldRetry else { continue }
-            let objectJson = localStore.objectJson(locator: locator) ?? ""
-            guard !objectJson.isEmpty || syncdata.isTombstone else { continue }
-            let metadata = metadata(locator: locator)
-            guard let object = try? SyncableObject(object: objectJson, locator: locator, metadata: metadata, syncdata: syncdata) else { continue }
+            guard let object = try? localSyncableObject(locator: locator) else { continue }
             objects.append(object)
             if setStatusUpSyncing {
                 syncdata.status = .upSyncing
@@ -216,6 +235,7 @@ internal actor LocalPersistenceActor {
         }
         return objects
     }
+    
     
     // MARK: Processing cloud responses
     
@@ -226,10 +246,10 @@ internal actor LocalPersistenceActor {
     @discardableResult
     func processCloudSavedRecords(_ records: [CKRecord], user: String?) -> ProcessingResults {
         var errors = [ObjectError]()
-        let objects = records.map { SyncableObject(ckRecord: $0, user: user) }
-        for object in objects {
+        for record in records {
             do {
-                try save(metadata: object.archivedMetadata, locator: object.locator)
+                let object = try syncableObject(ckRecord: record, user: user)
+                try save(metadata: record.archivedMetadata, locator: object.locator)
                 guard var syncdata = syncdata(locator: object.locator) else { continue }
                 if syncdata.commit == object.commit {
                     syncdata.status = .current
@@ -239,7 +259,8 @@ internal actor LocalPersistenceActor {
                     try removeLocatorNeedingUpSync(object.locator)
                 }
             } catch {
-                errors.append(ObjectError(locator: object.locator, error: error))
+                let locator = record.objectLocator(user: user)
+                errors.append(ObjectError(locator: locator, error: error))
             }
         }
         return ProcessingResults(changes: [], errors: errors)
@@ -271,10 +292,8 @@ internal actor LocalPersistenceActor {
         guard let cloudRecord = error.userInfo[CKRecordChangedErrorServerRecordKey] as? CKRecord else {
             throw TBSyncedObjectStoreError.missingServerRecord
         }
-        let cloudObject = SyncableObject(ckRecord: cloudRecord, user: user)
-        guard let localObject = syncableObject(locator: cloudObject.locator) else {
-            throw TBSyncedObjectStoreError.missingLocalObject(cloudObject.locator)
-        }
+        let cloudObject = try syncableObject(ckRecord: cloudRecord, user: user)
+        let localObject = try localSyncableObject(locator: cloudObject.locator)
         let locator = cloudObject.locator
         
         // always update the metadata to the latest cloud metadata
@@ -295,7 +314,7 @@ internal actor LocalPersistenceActor {
         // three posibilites: the cloud object wins, the local oeject wins, or the resolver combines them into a new object
         var object = resolveConflict(cloudObject, object2: localObject)
         if object.commit.isResolve || object.commit.isEmpty {
-            object.commit = try newCommit(hash: object.objectJson.jsonHash())
+            object.commit = try newCommit(hash: object.objectHash)
         }
         
         // if the local object wins, update the metadata and resync
@@ -308,14 +327,14 @@ internal actor LocalPersistenceActor {
             return nil
         }
         
-        // get the codable object type
-        guard let type = types[object.type] else {
-            throw TBSyncedObjectStoreError.unknownObjectType(object.type)
+        // get the codable object
+        guard let codableObject = object.object else {
+            throw TBSyncedObjectStoreError.codableObjectMissing
         }
         
         // if the cloud object wins, update the local object
         if object.commit == cloudObject.commit {
-            try localStore.saveObject(object.object(type: type), locator: locator)
+            try localStore.saveObject(codableObject, locator: locator)
             let syncdata = object.syncdata(staus: .current)
             try save(syncdata: syncdata, locator: locator)
             try removeLocatorNeedingUpSync(locator)
@@ -323,7 +342,7 @@ internal actor LocalPersistenceActor {
         }
         
         // if a combined object is created, update the local object and resync
-        try localStore.saveObject(object.object(type: type), locator: locator)
+        try localStore.saveObject(codableObject, locator: locator)
         let syncdata = object.syncdata(staus: .needsUpSync)
         try save(syncdata: syncdata, locator: locator)
         try addLocatorNeedingUpSync(locator)
@@ -360,37 +379,31 @@ internal actor LocalPersistenceActor {
         }
     }
     
-    
     func processFetchedRecords(_ records: [CKRecord], user: String?) -> ProcessingResults {
         var changes = [ObjectChange]()
         var errors = [ObjectError]()
-        let objects = records.map { SyncableObject(ckRecord: $0, user: user) }
-        for object in objects {
+        for record in records {
             do {
+                let object = try syncableObject(ckRecord: record, user: user)
                 if let change = try processFetchedObject(object) {
                     changes.append(change)
                 }
             } catch {
-                errors.append(ObjectError(locator: object.locator, error: error))
+                let locator = record.objectLocator(user: user)
+                errors.append(ObjectError(locator: locator, error: error))
             }
         }
         return ProcessingResults(changes: changes, errors: errors)
     }
     
-    
     func processFetchedRecord(_ record: CKRecord, user: String?) throws -> ObjectChange? {
-        let object = SyncableObject(ckRecord: record, user: user)
+        let object = try syncableObject(ckRecord: record, user: user)
         return try processFetchedObject(object)
     }
     
     private func processFetchedObject(_ object: SyncableObject) throws -> ObjectChange? {
         let locator = object.locator
-        
-        // get the codable object type
-        guard let type = types[object.type] else {
-            throw TBSyncedObjectStoreError.unknownObjectType(object.type)
-        }
-        
+                
         // if no syncdata, this is a new object, create
         guard var syncdata = syncdata(locator: locator) else {
             let syncdata = object.syncdata(staus: .current)
@@ -398,7 +411,7 @@ internal actor LocalPersistenceActor {
             // if the new object is a tombstone return nil, no need to save the object/metdata or return an ObjectChange
             guard object.isNotTombstone else { return nil }
             try? save(metadata: object.archivedMetadata, locator: locator)
-            try localStore.saveObject(object.object(type: type), locator: object.locator)
+            try save(object: object.object, locator: object.locator)
             return ObjectChange(locator: locator, commit: object.commit, action: .created)
         }
         
@@ -431,7 +444,7 @@ internal actor LocalPersistenceActor {
             try? save(metadata: object.archivedMetadata, locator: locator)
             let syncdata = object.syncdata(staus: .current)
             try save(syncdata: syncdata, locator: locator)
-            try localStore.saveObject(object.object(type: type), locator: object.locator)
+            try save(object: object.object, locator: object.locator)
             return ObjectChange(locator: locator, commit: object.commit, action: .modified)
         }
         
@@ -477,10 +490,14 @@ internal actor LocalPersistenceActor {
                 return try saveObjectAndSetNeedsUpSync(object: object, locator: locator)
             }
             let existingMetadata = metadata(locator: locator)
-            let syncObject1 = try SyncableObject(object: existingObject, locator: locator, metadata: existingMetadata, commit: existingSyncdata.commit)
-            let syncObject2 = try SyncableObject(object: object, locator: locator, metadata: nil, commit: newCommit(hash: object.jsonHash()))
-            let resolvedSyncObject = try conflictResolver.resolveConflict(syncObject1, syncObject2)
-            let resolvedObject: T = try resolvedSyncObject.object()
+            let existingCommit = existingSyncdata.commit
+            let existingSyncObject = try syncableObject(object: existingObject, locator: locator, metadata: existingMetadata, commit: existingCommit)
+            let newCommit = try newCommit(hash: object.jsonHash())
+            let newSyncObject = try syncableObject(object: object, locator: locator, metadata: nil, commit: newCommit)
+            let resolvedSyncObject = try conflictResolver.resolveConflict(existingSyncObject, newSyncObject)
+            guard let resolvedObject = resolvedSyncObject.object as? T else {
+                throw TBSyncedObjectStoreError.codableObjectTypeMismatch
+            }
             return try saveObjectAndSetNeedsUpSync(object: resolvedObject, locator: locator)
         }
         
