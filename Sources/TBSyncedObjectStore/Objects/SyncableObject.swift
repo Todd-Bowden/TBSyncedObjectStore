@@ -11,8 +11,8 @@ import CloudKit
 public struct SyncableObject {
     
     private struct Keys {
-        static let tombstone = "_tombstone"
-        static let commit = "_commit"
+        static let tombstone = "tombstone__"
+        static let commit = "commit__"
     }
     
     public let locator: ObjectLocator
