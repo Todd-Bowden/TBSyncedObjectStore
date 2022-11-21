@@ -151,9 +151,16 @@ internal actor LocalPersistenceActor {
         }
     }
     
-    func saveLatestCloudModificationDate(_ date: Date, type: String, user: String?) throws {
+    private func saveLatestCloudModificationDate(_ date: Date, type: String, user: String?) throws {
         let filename = try latestCloudModificationDateFilename(type: type, user: user)
         return try fileManager.write(file: filename, object: date)
+    }
+    
+    func conditionallyUpdateCloudModificationDate(_ date: Date, type: String, user: String?) throws {
+        let existingDate = try latestCloudModificationDate(type: type, user: user)
+        if date > existingDate {
+            try saveLatestCloudModificationDate(date, type: type, user: user)
+        }
     }
     
     private func deleteMetadata(locator: ObjectLocator) throws {
