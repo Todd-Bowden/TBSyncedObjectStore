@@ -33,6 +33,10 @@ public struct Syncdata: Codable {
         return true
     }
     
+    public var summary: String {
+        locator.summary + " | " + status.rawValue + " | " + (isTombstone ? "tombstone | " : "") + commit.string
+    }
+    
     init(locator: ObjectLocator, status: Status, isTombstone: Bool = false, commit: ObjectCommit, retryAfter: Date? = nil, retries: Int? = 0) {
         self.locator = locator
         self.status = status
