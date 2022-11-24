@@ -34,9 +34,13 @@ public class TBSyncedObjectStore {
     /// Provides serialized access to local sync data and the local store
     private let localPersistenceActor: LocalPersistenceActor
     
-    public var upSyncInterval: TimeInterval = 5
-    public var downSyncInterval: TimeInterval = 60
-    public var batchSize = 100
+    static let defaultUpSyncInterval: TimeInterval = 5
+    static let defaultDownSyncInterval: TimeInterval = 60
+    static let defaultBatchSize = 100
+    
+    public var upSyncInterval: TimeInterval
+    public var downSyncInterval: TimeInterval
+    public var batchSize: Int
     
     private var upSyncTimer: Timer? = nil
     private var needsUpSync: Bool = true
@@ -94,6 +98,10 @@ public class TBSyncedObjectStore {
         self.localPersistenceActor = try LocalPersistenceActor(config: config)
         
         self.identifier = try config.identifier()
+        
+        self.upSyncInterval = config.upSyncInterval ?? TBSyncedObjectStore.defaultUpSyncInterval
+        self.downSyncInterval = config.downSyncInterval ?? TBSyncedObjectStore.defaultDownSyncInterval
+        self.batchSize = config.batchSize ?? TBSyncedObjectStore.defaultBatchSize
         
         startUpSync()
         startDownSync()
@@ -370,6 +378,9 @@ public extension TBSyncedObjectStore{
         public var localStore: TBSyncedObjectLocalStoreProtocol?
         public var conflictResolver: TBSyncedObjectConflctResolverProtocol?
         public var localEncryptionProvider: TBFileManagerEncryptionProviderProtocol?
+        public var upSyncInterval: TimeInterval?
+        public var downSyncInterval: TimeInterval?
+        public var batchSize: Int?
         
         func identifier() throws -> String {
             try ((container ?? "") + scope.rawValue).hash()
@@ -383,7 +394,12 @@ public extension TBSyncedObjectStore{
                     recordMappings: [String: CKRecordMappingProtocol] = [:],
                     localStore: TBSyncedObjectLocalStoreProtocol? = nil,
                     conflictResolver: TBSyncedObjectConflctResolverProtocol? = nil,
-                    localEncryptionProvider: TBFileManagerEncryptionProviderProtocol? = nil) {
+                    localEncryptionProvider: TBFileManagerEncryptionProviderProtocol? = nil,
+                    upSyncInterval: TimeInterval? = nil,
+                    downSyncInterval: TimeInterval? = nil,
+                    batchSize: Int? = nil)
+        
+        {
             self.appGroup = appGroup
             self.baseDirectory = baseDirectory
             self.container = container
@@ -393,6 +409,9 @@ public extension TBSyncedObjectStore{
             self.localStore = localStore
             self.conflictResolver = conflictResolver
             self.localEncryptionProvider = localEncryptionProvider
+            self.upSyncInterval = upSyncInterval
+            self.downSyncInterval = downSyncInterval
+            self.batchSize = batchSize
         }
     }
 }
