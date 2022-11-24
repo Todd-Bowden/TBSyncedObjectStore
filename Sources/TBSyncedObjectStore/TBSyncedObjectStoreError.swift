@@ -25,4 +25,6 @@ public enum TBSyncedObjectStoreError: Error {
     case codableObjectTypeMismatch
     case recordMappingNotProvided
     case ckRecordObjectMissing
+    case initialUserNotSet
+    case userMismatch(String, String)
 }

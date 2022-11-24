@@ -55,7 +55,7 @@ public class TBSyncedObjectStore {
     public let errorsPublisher = PassthroughSubject<[ObjectError],Never>()
     
     public let identifier: String
-    
+    public private(set) var initialUser: String?
     
     public static func store(_ scope: Scope, types: [String:Codable.Type], appGroup: String?, container: String?) throws -> TBSyncedObjectStore {
         let config = Config(appGroup: appGroup, container: container, scope: scope, types: types)
@@ -105,7 +105,12 @@ public class TBSyncedObjectStore {
         
         startUpSync()
         startDownSync()
-        downSyncTask()
+        
+        Task {
+            try await refreshInitialUser()
+            try await downSync()
+        }
+       
     }
     
     
@@ -305,12 +310,28 @@ public class TBSyncedObjectStore {
 
     // MARK: User and Locator
     
+    public func refreshInitialUser() async throws {
+        if scope == .private {
+            initialUser = try await container.userRecordID().recordName
+        }
+    }
+    
     public func user() async throws -> String? {
         switch scope {
         case .public:
             return nil
         case .private:
-            return try await container.userRecordID().recordName
+            if initialUser == nil {
+                try await refreshInitialUser()
+            }
+            guard let initialUser = initialUser else {
+                throw TBSyncedObjectStoreError.initialUserNotSet
+            }
+            let user = try await container.userRecordID().recordName
+            guard initialUser == user else {
+                throw TBSyncedObjectStoreError.userMismatch(initialUser, user)
+            }
+            return user
         }
     }
     
