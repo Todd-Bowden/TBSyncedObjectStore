@@ -159,7 +159,6 @@ public class TBSyncedObjectStore {
             isSyncing = false
             return
         }
-        print(objects)
         
         // map objects to cloudkit records and save to cloudkit
         var errors = [ObjectError]()
@@ -173,7 +172,6 @@ public class TBSyncedObjectStore {
                 errors.append(error)
             }
         }
-        print(records)
         let results = try await database.modifyRecords(saving: records, deleting: [], atomically: false).saveResults
         
         // map the result into successfully saved records and errors
@@ -217,18 +215,17 @@ public class TBSyncedObjectStore {
     }
     
     private func downSync(type: String, user: String?) async throws {
-        var latestCloudModificationDate = try await localPersistenceActor.latestCloudModificationDate(type: type, user: user)
+        let latestCloudModificationDate = try await localPersistenceActor.latestCloudModificationDate(type: type, user: user)
         var fetchResults = try await fetchRecords(type: type, since: latestCloudModificationDate)
+        print("\(fetchResults.records.count) records \(identifier) \(scope.rawValue)")
         try await processFetchResults(fetchResults, user: user)
         var cursor = fetchResults.cursor
-        latestCloudModificationDate = fetchResults.latestModificationDate
         while cursor != nil {
             fetchResults = try await fetchRecords(cursor: cursor!)
             try await processFetchResults(fetchResults, user: user)
             cursor = fetchResults.cursor
-            latestCloudModificationDate = Date.laterDate(latestCloudModificationDate, fetchResults.latestModificationDate)
         }
-        try await localPersistenceActor.saveLatestCloudModificationDate(latestCloudModificationDate, type: type, user: user)
+        try await localPersistenceActor.conditionallyUpdateCloudModificationDate(fetchResults.latestModificationDate, type: type, user: user)
     }
     
     private func processFetchResults(_ fetchResults: FetchResults, user: String?) async throws {
@@ -276,7 +273,8 @@ public class TBSyncedObjectStore {
     }
     
     private func fetchRecords(type: String, since date: Date) async throws -> FetchResults {
-        let predicate = NSPredicate(format: "modificationDate >= %@", date as CVarArg)
+        print("fetch records since \(date)")
+        let predicate = NSPredicate(format: "modificationDate > %@", date as CVarArg)
         let query = CKQuery(recordType: type, predicate: predicate)
         let resultsAndCursor = try await database.records(matching: query, resultsLimit: batchSize)
         let results = resultsAndCursor.matchResults.map { (_, result) in
