@@ -488,14 +488,19 @@ internal actor LocalPersistenceActor {
         
         // check for a tombstone, if found, the object was previously deleted, throw an error
         guard existingSyncdata.isNotTombstone else {
-            throw TBSyncedObjectStoreError.objectPreviouslyDeleted
+            throw TBSyncedObjectStoreError.objectDeleted
         }
+        
+        // get the existing object, if none just save and set to needsUpSync
+        guard let existingObject:T = localStore.object(locator: locator) else {
+            return try saveObjectAndSetNeedsUpSync(object: object, locator: locator)
+        }
+        
+        // if the object is the same as the exising object just return
+        guard existingObject.isDifferentThan(object) else { return }
         
         // if the deviceID in the existing sync data is not this device, do a conflict resolve
         guard self.deviceID == existingSyncdata.commit.deviceID else {
-            guard let existingObject:T = localStore.object(locator: locator) else {
-                return try saveObjectAndSetNeedsUpSync(object: object, locator: locator)
-            }
             let existingMetadata = metadata(locator: locator)
             let existingCommit = existingSyncdata.commit
             let existingSyncObject = try syncableObject(object: existingObject, locator: locator, metadata: existingMetadata, commit: existingCommit)
@@ -523,8 +528,7 @@ internal actor LocalPersistenceActor {
     // update the commit deviceID to this device
     func acknowledgeObject(locator: ObjectLocator) throws {
         guard var syncdata = syncdata(locator: locator) else { return }
-        let commit = syncdata.commit
-        syncdata.commit = ObjectCommit(deviceID: deviceID, commitHash: commit.commitHash, commitTime: commit.commitTime, commitID: commit.commitID)
+        syncdata.commit = syncdata.commit.newDeviceID(deviceID)
         try save(syncdata: syncdata, locator: locator)
     }
     
@@ -539,6 +543,11 @@ internal actor LocalPersistenceActor {
             }
         }
         return errors
+    }
+    
+    func isDeletedObject(locator: ObjectLocator) throws -> Bool {
+        guard let syncdata = syncdata(locator: locator) else { return false }
+        return syncdata.isTombstone
     }
     
     func deleteObject(locator: ObjectLocator) throws {
