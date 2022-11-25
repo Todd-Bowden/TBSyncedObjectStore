@@ -378,6 +378,11 @@ public class TBSyncedObjectStore {
         await localPersistenceActor.acknowledgeObjects(locators: locators)
     }
     
+    public func isDeletedObject(id: String, type: String) async throws -> Bool {
+        let locator = try await locator(id: id, type: type)
+        return try await localPersistenceActor.isDeletedObject(locator: locator)
+    }
+    
     public func deleteObject(id: String, type: String) async throws {
         let locator = try await locator(id: id, type: type)
         try await localPersistenceActor.deleteObject(locator: locator)
