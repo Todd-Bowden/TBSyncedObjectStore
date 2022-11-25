@@ -10,9 +10,9 @@ import Foundation
 public enum TBSyncedObjectStoreError: Error {
     case utf8EncodingError
     case noObjectID
-    case objectPreviouslyDeleted
-    case coflictingObjects(Codable,Codable)
-    case coflictingSyncableObjects(SyncableObject,SyncableObject)
+    case objectDeleted
+    case coflictingObjects(Codable, Codable)
+    case coflictingSyncableObjects(SyncableObject, SyncableObject)
     case missingServerRecord
     case missingClientRecord
     case missingLocalObject(ObjectLocator)
