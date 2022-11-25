@@ -47,6 +47,10 @@ public struct ObjectCommit: Codable, Equatable {
             return self
         }
     }
+    
+    public func newDeviceID(_ deviceID: String) -> ObjectCommit {
+        ObjectCommit(deviceID: deviceID, commitHash: commitHash, commitTime: commitTime, commitID: commitID)
+    }
      
     public func isSameAs(commit: ObjectCommit) -> Bool {
         self.commitHash == commit.commitHash && self.commitTime == commit.commitTime && self.commitID == commit.commitID
