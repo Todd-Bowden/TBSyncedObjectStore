@@ -321,7 +321,7 @@ internal actor LocalPersistenceActor {
         
         // do a conflict resolve
         // three posibilites: the cloud object wins, the local oeject wins, or the resolver combines them into a new object
-        var object = resolveConflict(cloudObject, object2: localObject)
+        var object = resolveConflict(cloudObject, localObject)
         if object.commit.isResolve || object.commit.isEmpty {
             object.commit = try newCommit(hash: object.objectHash)
         }
@@ -379,7 +379,7 @@ internal actor LocalPersistenceActor {
         print("\(locator.id) retry after \(retrySeconds) seconds")
     }
     
-    private func resolveConflict(_ object1: SyncableObject, object2: SyncableObject) -> SyncableObject {
+    private func resolveConflict(_ object1: SyncableObject, _ object2: SyncableObject) -> SyncableObject {
         if object1.isTombstone { return object1 }
         if object2.isTombstone { return object2 }
         
