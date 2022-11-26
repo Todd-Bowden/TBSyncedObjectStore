@@ -26,6 +26,7 @@ internal actor LocalPersistenceActor {
     private let deviceID: String
     private let conflictResolver: TBSyncedObjectConflctResolverProtocol
     
+    private let maxRetryInterval: TimeInterval = 3600
 
     init(config: TBSyncedObjectStore.Config) throws {
         self.types = config.types
@@ -254,6 +255,7 @@ internal actor LocalPersistenceActor {
     func processCloudSavedRecords(_ records: [CKRecord], user: String?) -> ProcessingResults {
         var errors = [ObjectError]()
         for record in records {
+            print(record)
             do {
                 let object = try syncableObject(ckRecord: record, user: user)
                 try save(metadata: record.archivedMetadata, locator: object.locator)
@@ -274,10 +276,11 @@ internal actor LocalPersistenceActor {
     }
     
     // Process attempted cloud save errors
-    func processCloudErrors(_ ckErrors: [CKError], user: String?) -> ProcessingResults {
+    func processCloudErrors(_ objectErrors: [ObjectError], user: String?) -> ProcessingResults {
         var changes = [ObjectChange]()
-        var errors = [ObjectError]()
-        for ckError in ckErrors {
+        var processingErrors = [ObjectError]()
+        for objectError in objectErrors {
+            guard let ckError = objectError.error as? CKError else { continue }
             do {
                 switch ckError.code {
                 case .serverRecordChanged:
@@ -285,14 +288,13 @@ internal actor LocalPersistenceActor {
                         changes.append(change)
                     }
                 default:
-                    try processCloudErrorDefaultRetry(ckError, user: user)
+                    try processCloudErrorRetry(objectError, user: user)
                 }
-            } catch {
-                let locator = locator(ckError: ckError, user: user)
-                errors.append(ObjectError(locator: locator, error: error))
+            } catch let processingError {
+                processingErrors.append(ObjectError(locator: objectError.locator, error: processingError))
             }
         }
-        return ProcessingResults(changes: changes, errors: errors)
+        return ProcessingResults(changes: changes, errors: processingErrors)
     }
     
     private func processServerRecordChangedError(_ error: CKError, user: String?) throws -> ObjectChange? {
@@ -357,20 +359,24 @@ internal actor LocalPersistenceActor {
     }
     
     // retry sync again with exponential backoff
-    private func processCloudErrorDefaultRetry(_ error: CKError, user: String?) throws {
-        guard let record = error.userInfo[CKRecordChangedErrorClientRecordKey] as? CKRecord else {
-            throw TBSyncedObjectStoreError.missingClientRecord
-        }
-        let object = try syncableObject(ckRecord: record, user: user)
-        guard var syncdata = syncdata(locator: object.locator) else { return }
+    private func processCloudErrorRetry(_ objectError: ObjectError, user: String?) throws {
+        let ckError = objectError.error as? CKError
+        let locator = objectError.locator
+        guard var syncdata = self.syncdata(locator: locator) else { return }
         syncdata.status = .needsUpSync
-        let retries = (syncdata.retries ?? 0) + 1
+        var retries = (syncdata.retries ?? 0) + 1
+        var retrySeconds = TimeInterval(pow(Double(retries), 2))
+        if retrySeconds > maxRetryInterval {
+            retrySeconds = maxRetryInterval
+            retries -= 1
+        }
+        retrySeconds = ckError?.retryAfterSeconds ?? retrySeconds
         syncdata.retries = retries
-        let retryMinutes = Int(pow(Double(retries), 2))
-        let retryTime = Date().timeIntervalSince1970 + (TimeInterval(retryMinutes) * 60)
+        let retryTime = Date().timeIntervalSince1970 + retrySeconds
         syncdata.retryAfter = Date(timeIntervalSince1970: retryTime)
-        try save(syncdata: syncdata, locator: object.locator)
-        try addLocatorNeedingUpSync(object.locator)
+        try save(syncdata: syncdata, locator: locator)
+        try addLocatorNeedingUpSync(locator)
+        print("\(locator.id) retry after \(retrySeconds) seconds")
     }
     
     private func resolveConflict(_ object1: SyncableObject, object2: SyncableObject) -> SyncableObject {
@@ -469,14 +475,7 @@ internal actor LocalPersistenceActor {
         return nil
     }
     
-    private func locator(ckError: CKError, user: String?) -> ObjectLocator {
-        guard let record = ckError.userInfo[CKRecordChangedErrorClientRecordKey] as? CKRecord else {
-            return ObjectLocator(id: "", type: "", user: user)
-        }
-        return ObjectLocator(id: record.recordID.recordName, type: record.recordType, user: user)
-    }
-    
-    
+
     // MARK: Save, acknowledge, delete
     
     // Save an object

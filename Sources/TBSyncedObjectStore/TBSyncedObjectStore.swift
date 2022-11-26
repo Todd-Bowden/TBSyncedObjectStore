@@ -43,7 +43,6 @@ public class TBSyncedObjectStore {
     public var batchSize: Int
     
     private var upSyncTimer: Timer? = nil
-    private var needsUpSync: Bool = true
     private var downSyncTimer: Timer? = nil
     
     private var isSyncing: Bool = false
@@ -132,7 +131,7 @@ public class TBSyncedObjectStore {
     
     func startUpSync() {
         self.upSyncTimer = Timer.scheduledTimer(withTimeInterval: upSyncInterval, repeats: true) { _ in
-            guard self.needsUpSync && !self.isSyncing else { return }
+            guard self.isNotSyncing else { return }
             self.upSyncTask()
         }
     }
@@ -162,49 +161,54 @@ public class TBSyncedObjectStore {
     }
     
     private func upSync() async throws {
-        guard needsUpSync && isNotSyncing else { return }
+        guard isNotSyncing else { return }
         let user = try await user()
         
         isSyncing = true
         let objects = await localPersistenceActor.objectsNeedingUpSync(user: user, setStatusUpSyncing: true, max: batchSize)
         guard objects.count > 0 else {
-            needsUpSync = false
             isSyncing = false
             return
         }
         
-        // map objects to cloudkit records and save to cloudkit
-        var errors = [ObjectError]()
+        // map objects to cloudkit records
+        var mappingErrors = [ObjectError]()
         var records = [CKRecord]()
+        var typeForId = [String: String]()
         for object in objects {
+            typeForId[object.id] = object.type
             do {
                 let record = try object.ckRecord()
                 records.append(record)
             } catch {
                 let error = ObjectError(locator: object.locator, error: error)
-                errors.append(error)
+                mappingErrors.append(error)
             }
         }
+        publish(errors: mappingErrors)
+        
+        // save to cloudkit
         let results = try await database.modifyRecords(saving: records, deleting: [], atomically: false).saveResults
         
         // map the result into successfully saved records and errors
         var savedRecords = [CKRecord]()
-        var ckErrors = [CKError]()
-        for (_,result) in results {
+        var saveErrors = [ObjectError]()
+        
+        for (id, result) in results {
             switch result {
             case .success(let record):
                 savedRecords.append(record)
-            case .failure(let error):
-                if let ckError = error as? CKError {
-                    ckErrors.append(ckError)
-                }
+            case .failure(let ckError):
+                guard let type = typeForId[id.recordName] else { continue }
+                guard let locator = try? await locator(id: id.recordName, type: type) else { continue }
+                let saveError = ObjectError(locator: locator, error: ckError)
+                saveErrors.append(saveError)
             }
         }
         
-        var processingErrors = await localPersistenceActor.processCloudSavedRecords(records, user: user).errors
-        let processingResults = await localPersistenceActor.processCloudErrors(ckErrors, user: user)
+        var processingErrors = await localPersistenceActor.processCloudSavedRecords(savedRecords, user: user).errors
+        let processingResults = await localPersistenceActor.processCloudErrors(saveErrors, user: user)
         publish(changes: processingResults.changes)
-        if processingResults.changes.count > 0 { needsUpSync = true }
         processingErrors.append(contentsOf: processingResults.errors)
         publish(errors: processingErrors)
         isSyncing = false
@@ -362,7 +366,7 @@ public class TBSyncedObjectStore {
     public func saveObject<T:Codable>(_ object: T, id: String, type: String) async throws {
         let locator = try await locator(id: id, type: type)
         try await localPersistenceActor.saveObject(object, locator: locator)
-        needsUpSync = true
+        //needsUpSync = true
     }
     
     public func acknowledgeObject(id: String, type: String) async throws {
@@ -386,7 +390,7 @@ public class TBSyncedObjectStore {
     public func deleteObject(id: String, type: String) async throws {
         let locator = try await locator(id: id, type: type)
         try await localPersistenceActor.deleteObject(locator: locator)
-        needsUpSync = true
+        //needsUpSync = true
     }
     
 }
