@@ -354,7 +354,7 @@ public class TBSyncedObjectStore {
     
     public func object<T:Codable>(id: String, type: String) async throws -> T? {
         let locator = try await locator(id: id, type: type)
-        guard let object:T = localStore.object(locator: locator) else { return nil }
+        guard let object:T = await localPersistenceActor.object(locator: locator) else { return nil }
         return object
     }
     
