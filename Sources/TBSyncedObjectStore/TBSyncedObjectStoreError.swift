@@ -27,4 +27,11 @@ public enum TBSyncedObjectStoreError: Error {
     case ckRecordObjectMissing
     case initialUserNotSet
     case userMismatch(String, String)
+    
+    public var isDeleted: Bool {
+        switch self {
+        case .objectDeleted: return true
+        default: return false
+        }
+    }
 }
