@@ -88,7 +88,7 @@ internal actor LocalPersistenceActor {
     }
     
     private func metadata(locator: ObjectLocator) -> Data? {
-        try? fileManager.read(file: filename(locator: locator, folder: .metadata))
+        try? fileManager.readData(file: filename(locator: locator, folder: .metadata))
     }
     
     func latestCloudModificationDate(type: String, user: String?) throws -> Date {
@@ -244,6 +244,19 @@ internal actor LocalPersistenceActor {
         return objects
     }
     
+    func setStatus(_ status: Syncdata.Status, objects: [SyncableObject]) {
+        let locators = objects.map { $0.locator }
+        setStatus(status, locators: locators)
+    }
+    
+    func setStatus(_ status: Syncdata.Status, locators: [ObjectLocator]) {
+        for locator in locators {
+            guard var syncdata = syncdata(locator: locator) else { continue }
+            syncdata.status = status
+            try? save(syncdata: syncdata, locator: locator)
+        }
+    }
+    
     
     // MARK: Processing cloud responses
     
@@ -255,7 +268,6 @@ internal actor LocalPersistenceActor {
     func processCloudSavedRecords(_ records: [CKRecord], user: String?) -> ProcessingResults {
         var errors = [ObjectError]()
         for record in records {
-            print(record)
             do {
                 let object = try syncableObject(ckRecord: record, user: user)
                 try save(metadata: record.archivedMetadata, locator: object.locator)
@@ -316,7 +328,7 @@ internal actor LocalPersistenceActor {
             try save(syncdata: syncdata, locator: locator)
             try localStore.deleteObject(locator: locator)
             try removeLocatorNeedingUpSync(locator)
-            return ObjectChange(locator: locator, commit: cloudObject.commit, action: .deleted)
+            return ObjectChange(locator: locator, commit: cloudObject.commit, action: .deleted, origin: .cloud)
         }
         
         // do a conflict resolve
@@ -347,7 +359,7 @@ internal actor LocalPersistenceActor {
             let syncdata = object.syncdata(staus: .current)
             try save(syncdata: syncdata, locator: locator)
             try removeLocatorNeedingUpSync(locator)
-            return ObjectChange(locator: locator, commit: object.commit, action: .modified)
+            return ObjectChange(locator: locator, commit: object.commit, action: .modified, origin: .cloud)
         }
         
         // if a combined object is created, update the local object and resync
@@ -355,7 +367,7 @@ internal actor LocalPersistenceActor {
         let syncdata = object.syncdata(staus: .needsUpSync)
         try save(syncdata: syncdata, locator: locator)
         try addLocatorNeedingUpSync(locator)
-        return ObjectChange(locator: locator, commit: object.commit, action: .modified)
+        return ObjectChange(locator: locator, commit: object.commit, action: .modified, origin: .local)
     }
     
     // retry sync again with exponential backoff
@@ -425,7 +437,7 @@ internal actor LocalPersistenceActor {
             guard object.isNotTombstone else { return nil }
             try? save(metadata: object.archivedMetadata, locator: locator)
             try save(object: object.object, locator: object.locator)
-            return ObjectChange(locator: locator, commit: object.commit, action: .created)
+            return ObjectChange(locator: locator, commit: object.commit, action: .created, origin: .cloud)
         }
         
         // if fetched object is a tombstone and local object is not, then delete
@@ -435,7 +447,7 @@ internal actor LocalPersistenceActor {
             try save(syncdata: syncdata, locator: locator)
             try localStore.deleteObject(locator: locator)
             try removeLocatorNeedingUpSync(locator)
-            return ObjectChange(locator: locator, commit: object.commit, action: .deleted)
+            return ObjectChange(locator: locator, commit: object.commit, action: .deleted, origin: .cloud)
         }
         
         // if local object is a tombstone with status current and fetched object is not a tombstone, local object needs upSync
@@ -449,6 +461,7 @@ internal actor LocalPersistenceActor {
     
         // if fetched object is the same as the local object, nothing to do, return nil
         if object.commit.isSameAs(commit: syncdata.commit) {
+            print("fetched object is the same as local")
             return nil
         }
         
@@ -458,7 +471,7 @@ internal actor LocalPersistenceActor {
             let syncdata = object.syncdata(staus: .current)
             try save(syncdata: syncdata, locator: locator)
             try save(object: object.object, locator: object.locator)
-            return ObjectChange(locator: locator, commit: object.commit, action: .modified)
+            return ObjectChange(locator: locator, commit: object.commit, action: .modified, origin: .cloud)
         }
         
         // if the object is in the middle of upSyncing, do nothing, wait for upSync to complete
@@ -479,10 +492,10 @@ internal actor LocalPersistenceActor {
     // MARK: Save, acknowledge, delete
     
     // Save an object
-    func saveObject<T:Codable>(_ object: T, locator: ObjectLocator) throws {
+    func saveObject<T:Codable>(_ object: T, locator: ObjectLocator) throws -> ObjectChange? {
         // if there is no sync data (first time save) just save and set to needsUpSync
         guard let existingSyncdata = syncdata(locator: locator) else {
-            return try saveObjectAndSetNeedsUpSync(object: object, locator: locator)
+            return try saveObjectAndSetNeedsUpSync(object: object, locator: locator, action: .created)
         }
         
         // check for a tombstone, if found, the object was previously deleted, throw an error
@@ -492,11 +505,11 @@ internal actor LocalPersistenceActor {
         
         // get the existing object, if none just save and set to needsUpSync
         guard let existingObject:T = localStore.object(locator: locator) else {
-            return try saveObjectAndSetNeedsUpSync(object: object, locator: locator)
+            return try saveObjectAndSetNeedsUpSync(object: object, locator: locator, action: .created)
         }
         
         // if the object is the same as the exising object just return
-        guard existingObject.isDifferentThan(object) else { return }
+        guard existingObject.isDifferentThan(object) else { return nil }
         
         // if the deviceID in the existing sync data is not this device, do a conflict resolve
         guard self.deviceID == existingSyncdata.commit.deviceID else {
@@ -509,19 +522,22 @@ internal actor LocalPersistenceActor {
             guard let resolvedObject = resolvedSyncObject.object as? T else {
                 throw TBSyncedObjectStoreError.codableObjectTypeMismatch
             }
-            return try saveObjectAndSetNeedsUpSync(object: resolvedObject, locator: locator)
+            return try saveObjectAndSetNeedsUpSync(object: resolvedObject, locator: locator, action: .modified)
         }
-        
+       
         // save object
-        try saveObjectAndSetNeedsUpSync(object: object, locator: locator)
+        return try saveObjectAndSetNeedsUpSync(object: object, locator: locator, action: .modified)
     }
     
-    private func saveObjectAndSetNeedsUpSync<T:Codable>(object: T, locator: ObjectLocator) throws {
+    private func saveObjectAndSetNeedsUpSync<T:Codable>(object: T, locator: ObjectLocator, action: ObjectChange.Action) throws -> ObjectChange {
         let hash = object.jsonHash()
-        let syncdata = try Syncdata(locator: locator, status: .needsUpSync, commit: newCommit(hash: hash))
+        let commit = try newCommit(hash: hash)
+        let syncdata = Syncdata(locator: locator, status: .needsUpSync, commit: commit)
         try localStore.saveObject(object, locator: locator)
         try save(syncdata: syncdata, locator: locator)
         try addLocatorNeedingUpSync(locator)
+        print(syncdata)
+        return ObjectChange(locator: locator, commit: commit, action: action, origin: .local)
     }
     
     // update the commit deviceID to this device
@@ -549,11 +565,13 @@ internal actor LocalPersistenceActor {
         return syncdata.isTombstone
     }
     
-    func deleteObject(locator: ObjectLocator) throws {
-        let syncdata = try Syncdata(locator: locator, status: .needsUpSync, isTombstone: true, commit: newCommit(hash: ObjectCommit.tombstoneHash))
+    func deleteObject(locator: ObjectLocator) throws -> ObjectChange {
+        let commit = try newCommit(hash: ObjectCommit.tombstoneHash)
+        let syncdata = Syncdata(locator: locator, status: .needsUpSync, isTombstone: true, commit: commit)
         try save(syncdata: syncdata, locator: locator)
         try localStore.deleteObject(locator: locator)
         try addLocatorNeedingUpSync(locator)
+        return ObjectChange(locator: locator, commit: commit, action: .deleted, origin: .local)
     }
     
     // MARK: Commits and IDs
