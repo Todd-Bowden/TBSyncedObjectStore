@@ -29,6 +29,10 @@ public struct SyncableObject {
     public var user: String? { locator.user }
     public var isNotTombstone: Bool { !isTombstone }
     
+    public var summary: String {
+        locator.summary + " " + commit.string
+    }
+    
     private var objectJson: String? {
         guard let object = self.object else { return nil }
         let encoder = JSONEncoder()
