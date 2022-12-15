@@ -15,8 +15,14 @@ public struct ObjectChange {
         case deleted
     }
     
+    public enum Origin {
+        case local
+        case cloud
+    }
+    
     public let locator: ObjectLocator
     public let commit: ObjectCommit
     public let action: Action
+    public let origin: Origin
     
 }
