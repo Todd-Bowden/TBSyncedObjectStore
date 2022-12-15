@@ -26,12 +26,11 @@ let package = Package(
         .target(
             name: "TBSyncedObjectStore",
             dependencies: [
-                .product(
-                    name: "TBFileManager",
-                    package: "TBFileManager")]
+                .product(name: "TBFileManager", package: "TBFileManager")
+            ]
         ),
         .testTarget(
-            name: "TBSyncedObjectStoreTests",
-            dependencies: ["TBSyncedObjectStore"]),
+            name: "TBSyncedObjectStoreTests"
+        )
     ]
 )
