@@ -35,7 +35,7 @@ public class TBSyncedObjectStore {
     private let localPersistenceActor: LocalPersistenceActor
     
     static let defaultUpSyncInterval: TimeInterval = 5
-    static let defaultDownSyncInterval: TimeInterval = 60
+    static let defaultDownSyncInterval: TimeInterval = 29
     static let defaultBatchSize = 100
     
     public var upSyncInterval: TimeInterval
@@ -163,7 +163,6 @@ public class TBSyncedObjectStore {
     private func upSync() async throws {
         guard isNotSyncing else { return }
         let user = try await user()
-        
         isSyncing = true
         let objects = await localPersistenceActor.objectsNeedingUpSync(user: user, setStatusUpSyncing: true, max: batchSize)
         guard objects.count > 0 else {
@@ -188,8 +187,16 @@ public class TBSyncedObjectStore {
         publish(errors: mappingErrors)
         
         // save to cloudkit
-        let results = try await database.modifyRecords(saving: records, deleting: [], atomically: false).saveResults
-        
+        let results: [CKRecord.ID : Result<CKRecord, Error>]
+        do {
+            results = try await database.modifyRecords(saving: records, deleting: [], atomically: false).saveResults
+        } catch {
+            print(error)
+            await localPersistenceActor.setStatus(.needsUpSync, objects: objects)
+            isSyncing = false
+            return
+        }
+   
         // map the result into successfully saved records and errors
         var savedRecords = [CKRecord]()
         var saveErrors = [ObjectError]()
@@ -365,8 +372,9 @@ public class TBSyncedObjectStore {
     
     public func saveObject<T:Codable>(_ object: T, id: String, type: String) async throws {
         let locator = try await locator(id: id, type: type)
-        try await localPersistenceActor.saveObject(object, locator: locator)
-        //needsUpSync = true
+        if let change = try await localPersistenceActor.saveObject(object, locator: locator) {
+            publish(changes: [change])
+        } 
     }
     
     public func acknowledgeObject(id: String, type: String) async throws {
@@ -389,8 +397,8 @@ public class TBSyncedObjectStore {
     
     public func deleteObject(id: String, type: String) async throws {
         let locator = try await locator(id: id, type: type)
-        try await localPersistenceActor.deleteObject(locator: locator)
-        //needsUpSync = true
+        let change = try await localPersistenceActor.deleteObject(locator: locator)
+        publish(changes: [change])
     }
     
 }
@@ -413,7 +421,7 @@ public extension TBSyncedObjectStore{
         public var batchSize: Int?
         
         func identifier() throws -> String {
-            try ((container ?? "") + scope.rawValue).hash()
+            try ((container ?? "") + scope.rawValue).uuidHash()
         }
         
         public init(appGroup: String? = nil,
