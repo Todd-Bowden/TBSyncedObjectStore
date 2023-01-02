@@ -30,7 +30,8 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "TBSyncedObjectStoreTests"
+            name: "TBSyncedObjectStoreTests",
+            dependencies: ["TBSyncedObjectStore"]
         )
     ]
 )
