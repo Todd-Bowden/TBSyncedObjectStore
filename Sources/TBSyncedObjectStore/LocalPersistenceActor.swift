@@ -300,6 +300,8 @@ internal actor LocalPersistenceActor {
                     if let change = try processServerRecordChangedError(ckError, user: user) {
                         changes.append(change)
                     }
+                case .unknownItem:
+                    try? deleteMetadata(locator: objectError.locator)
                 default:
                     try processCloudErrorRetry(objectError, user: user)
                 }
