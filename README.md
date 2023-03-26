@@ -1,3 +1,3 @@
 # TBSyncedObjectStore
 
-A description of this package.
+Automatic data synchronization between devices using CloudKit
