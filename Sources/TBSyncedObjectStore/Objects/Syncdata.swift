@@ -18,6 +18,7 @@ public struct Syncdata: Codable {
     public var status: Status
     public var isTombstone: Bool
     public var commit: ObjectCommit
+    public var error: String?
     public var retryAfter: Date?
     public var retries: Int?
     

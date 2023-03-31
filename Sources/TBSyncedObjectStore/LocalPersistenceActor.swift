@@ -389,8 +389,10 @@ internal actor LocalPersistenceActor {
         syncdata.retries = retries
         let retryTime = Date().timeIntervalSince1970 + retrySeconds
         syncdata.retryAfter = Date(timeIntervalSince1970: retryTime)
+        syncdata.error = ckError.debugDescription
         try save(syncdata: syncdata, locator: locator)
         try addLocatorNeedingUpSync(locator)
+        print(ckError.debugDescription)
         print("\(locator.id) retry after \(retrySeconds) seconds")
     }
     
