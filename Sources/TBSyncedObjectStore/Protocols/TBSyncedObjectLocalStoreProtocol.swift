@@ -20,6 +20,9 @@ public protocol TBSyncedObjectLocalStoreProtocol {
     
     func objects<T:Codable>(type: String, user: String?) throws -> [T]
     
+    
+    func locators(type: String, user: String?) throws -> [ObjectLocator]
+    
 }
 
 public extension TBSyncedObjectLocalStoreProtocol {

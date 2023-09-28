@@ -1,0 +1,23 @@
+{
+  "pins" : [
+    {
+      "identity" : "tbencodinghashingextensions",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Todd-Bowden/TBEncodingHashingExtensions.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "aa2e697c13572b877d8a0cd6ef9b391f92354a24"
+      }
+    },
+    {
+      "identity" : "tbfilemanager",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Todd-Bowden/TBFileManager.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "bed87ec81c7dc99b0f03e8773d8124e7c7aaf7bf"
+      }
+    }
+  ],
+  "version" : 2
+}

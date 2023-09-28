@@ -72,6 +72,13 @@ internal actor LocalPersistenceActor {
         return object
     }
     
+    func object(locator: ObjectLocator) -> Codable? {
+        guard let type = try? codableType(type: locator.type) else { return nil }
+        guard let object = localStore.object(locator: locator, type: type) else { return nil }
+        try? acknowledgeObject(locator: locator)
+        return object
+    }
+    
     func objects<T:Codable>(type: String, user: String?) throws -> [T] {
         try localStore.objects(type: type, user: user)
     }
@@ -597,6 +604,23 @@ internal actor LocalPersistenceActor {
         func path(user: String?) -> String {
             (user ?? "_") + "/" + self.rawValue
         }
+    }
+    
+    // MARK: Rebuild Syncdata
+    
+    // get all objects from the local store
+    // if no syncdata exists, create new syncdata with status of .needsUpsync
+    func rebuildSyncdata(type: String, user: String?) throws {
+        let locators = try localStore.locators(type: type, user: user)
+        for locator in locators {
+            guard let object = object(locator: locator) else { continue }
+            let hash = object.jsonHash()
+            guard let commit = try? newCommit(hash: hash) else { continue }
+            let syncdata = Syncdata(locator: locator, status: .needsUpSync, commit: commit)
+            try save(syncdata: syncdata, locator: locator)
+            try addLocatorNeedingUpSync(locator)
+        }
+        
     }
 }
 

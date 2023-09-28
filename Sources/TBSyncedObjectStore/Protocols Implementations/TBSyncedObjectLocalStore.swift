@@ -56,4 +56,12 @@ public class TBSyncedObjectLocalStore: TBSyncedObjectLocalStoreProtocol {
         try? fileManager.read(type: type, file: filename(locator: locator))
     }
     
+    public func locators(type: String, user: String?) throws -> [ObjectLocator] {
+        let directory = try directory(type: type, user: user)
+        let files = try fileManager.contents(directory: directory)
+        return files.map { file in
+            ObjectLocator(id: file, type: type, user: user)
+        }
+    }
+    
 }

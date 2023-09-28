@@ -402,6 +402,10 @@ public class TBSyncedObjectStore {
         publish(changes: [change])
     }
     
+    public func resetSync(type: String) async throws {
+        try await localPersistenceActor.rebuildSyncdata(type: type, user: user())
+    }
+    
 }
 
 
