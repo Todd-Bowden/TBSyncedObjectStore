@@ -1,12 +1,12 @@
 {
   "pins" : [
     {
-      "identity" : "tbencodinghashingextensions",
+      "identity" : "tbencodinghashing",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Todd-Bowden/TBEncodingHashingExtensions.git",
+      "location" : "https://github.com/Todd-Bowden/TBEncodingHashing.git",
       "state" : {
         "branch" : "main",
-        "revision" : "aa2e697c13572b877d8a0cd6ef9b391f92354a24"
+        "revision" : "5b9cb97794290be128ad516eb964f398fc4a767e"
       }
     },
     {

@@ -19,7 +19,7 @@ let package = Package(
         // Dependencies declare other packages that this package depends on.
         // .package(url: /* package url */, from: "1.0.0"),
         .package(url: "https://github.com/Todd-Bowden/TBFileManager.git", branch: "main"),
-        .package(url: "https://github.com/Todd-Bowden/TBEncodingHashingExtensions.git", branch: "main")
+        .package(url: "https://github.com/Todd-Bowden/TBEncodingHashing.git", branch: "main")
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
@@ -28,7 +28,7 @@ let package = Package(
             name: "TBSyncedObjectStore",
             dependencies: [
                 .product(name: "TBFileManager", package: "TBFileManager"),
-                .product(name: "TBEncodingHashingExtensions", package: "TBEncodingHashingExtensions")
+                .product(name: "TBEncodingHashing", package: "TBEncodingHashing")
             ]
         ),
         .testTarget(
