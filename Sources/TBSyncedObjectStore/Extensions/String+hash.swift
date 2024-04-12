@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import TBEncodingHashingExtensions
+import TBEncodingHashing
 
 extension String {
         

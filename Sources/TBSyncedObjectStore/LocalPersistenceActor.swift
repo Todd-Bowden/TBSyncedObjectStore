@@ -7,7 +7,7 @@
 import Foundation
 import CloudKit
 import TBFileManager
-import TBEncodingHashingExtensions
+import TBEncodingHashing
 
 // The LocalPersistenceActor serializes calls to local persistence for the syncdata metadata and the local store
 // so that only one thread is calling a function at a time

@@ -7,7 +7,7 @@
 
 import Foundation
 import CloudKit
-import TBEncodingHashingExtensions
+import TBEncodingHashing
 
 public struct SyncableObject {
     

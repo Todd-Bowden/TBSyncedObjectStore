@@ -8,7 +8,7 @@ import Foundation
 import CloudKit
 import Combine
 import TBFileManager
-import TBEncodingHashingExtensions
+import TBEncodingHashing
 
 public class TBSyncedObjectStore {
     
