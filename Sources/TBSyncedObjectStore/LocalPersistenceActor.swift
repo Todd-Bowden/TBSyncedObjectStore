@@ -83,6 +83,10 @@ internal actor LocalPersistenceActor {
         try localStore.objects(type: type, user: user)
     }
     
+    func objects<T:Codable>(idPrefix: String, type: String, user: String?) throws -> [T] {
+        try localStore.objects(idPrefix: idPrefix, type: type, user: user)
+    }
+    
     private func filename(locator: ObjectLocator, folder: DataFolder) throws -> String {
         try folder.path(user: locator.user) + "/" + locator.type.conditionalHash() + "/" + locator.id.conditionalHash()
     }

@@ -371,6 +371,11 @@ public class TBSyncedObjectStore {
         return objects
     }
     
+    public func objects<T:Codable>(idPrefix: String, type: String) async throws -> [T] {
+        let objects: [T] = try await localPersistenceActor.objects(idPrefix: idPrefix, type: type, user: user())
+        return objects
+    }
+    
     public func saveObject<T:Codable>(_ object: T, id: String, type: String) async throws {
         let locator = try await locator(id: id, type: type)
         if let change = try await localPersistenceActor.saveObject(object, locator: locator) {
