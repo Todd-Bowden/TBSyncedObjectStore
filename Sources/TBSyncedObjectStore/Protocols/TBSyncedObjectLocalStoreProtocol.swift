@@ -22,6 +22,8 @@ public protocol TBSyncedObjectLocalStoreProtocol {
     
     func objects<T:Codable>(idPrefix: String, type: String, user: String?) throws -> [T]
     
+    func objectIDs(prefix: String, type: String, user: String?) throws -> [String]
+    
     func locators(type: String, user: String?) throws -> [ObjectLocator]
     
 }

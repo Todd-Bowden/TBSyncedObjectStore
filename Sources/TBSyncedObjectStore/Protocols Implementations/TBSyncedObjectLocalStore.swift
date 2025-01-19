@@ -58,6 +58,18 @@ public class TBSyncedObjectLocalStore: TBSyncedObjectLocalStoreProtocol {
         return objects
     }
     
+    public func objectIDs(prefix: String, type: String, user: String?) throws -> [String] {
+        guard let directory = try? directory(type: type, user: user) else { return [] }
+        guard let files = try? fileManager.contents(directory: directory) else { return [] }
+        var ids = [String]()
+        for file in files {
+            if file.hasPrefix(prefix) {
+                ids.append(file)
+            }
+        }
+        return ids
+    }
+    
     public func saveObject(_ object: Codable, locator: ObjectLocator) throws {
         try fileManager.write(file: filename(locator: locator), object: object)
     }
