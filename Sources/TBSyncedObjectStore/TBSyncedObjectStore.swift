@@ -53,6 +53,9 @@ public class TBSyncedObjectStore {
     
     public let changesPublisher = PassthroughSubject<[ObjectChange],Never>()
     public let errorsPublisher = PassthroughSubject<[ObjectError],Never>()
+    private let notificationsCenter = NotificationCenter.default
+    public static let changesNotification = Notification.Name("TBSyncedObjectStoreChanges")
+    public static let errorsNotification = Notification.Name("TBSyncedObjectStoreErrors")
     
     public let identifier: String
     public private(set) var initialUser: String?
@@ -119,12 +122,16 @@ public class TBSyncedObjectStore {
     private func publish(changes: [ObjectChange]) {
         guard changes.count > 0 else { return }
         changesPublisher.send(changes)
+        let userInfo: [AnyHashable : Any] = ["changes": changes]
+        notificationsCenter.post(name: TBSyncedObjectStore.changesNotification, object: self, userInfo: userInfo)
     }
     
     
     private func publish(errors: [ObjectError]) {
         guard errors.count > 0 else { return }
         errorsPublisher.send(errors)
+        let userInfo: [AnyHashable : Any] = ["errors": errors]
+        notificationsCenter.post(name: TBSyncedObjectStore.errorsNotification, object: self, userInfo: userInfo)
     }
     
     
