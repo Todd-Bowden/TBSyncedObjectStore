@@ -354,6 +354,10 @@ public class TBSyncedObjectStore {
         }
     }
     
+    public func userRecordName() async throws -> String {
+        try await container.userRecordID().recordName
+    }
+    
     private func locator(id: String, type: String) async throws -> ObjectLocator {
         try await ObjectLocator(id: id, type: type, user: user())
     }
